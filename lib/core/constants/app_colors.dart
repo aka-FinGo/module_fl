@@ -8,5 +8,5 @@ class AppColors {
   static const Color textGray = Color(0xFF7F8C8D);
   static const Color danger = Color(0xFFE74C3C);
   static const Color warning = Color(0xFFF1C40F);
-  static const Color bottomNavBg = Colors.white;
+  static const Color bottomNavBg = primary;
 }

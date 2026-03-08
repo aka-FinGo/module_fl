@@ -15,6 +15,7 @@ class ModuleDetailsPage extends ConsumerWidget {
     final moduleData = ref.watch(moduleDataProvider);
     final isLoading = ref.watch(isLoadingProvider);
     final expandedCategory = ref.watch(expandedCategoryProvider);
+    final checkedItems = ref.watch(checklistProvider);
     if (isLoading) {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.accent));
@@ -95,7 +96,7 @@ class ModuleDetailsPage extends ConsumerWidget {
                 ),
                 child: Column(
                   children: _buildSortedItems(
-                      items, category, moduleData.artikul, ref),
+                      items, category, moduleData.artikul, ref, checkedItems),
                 ),
               ),
           ],
@@ -104,21 +105,21 @@ class ModuleDetailsPage extends ConsumerWidget {
     );
   }
 
-  List<Widget> _buildSortedItems(
-      List items, String category, String artikul, WidgetRef ref) {
+  List<Widget> _buildSortedItems(List items, String category, String artikul,
+      WidgetRef ref, Set<String> checkedItems) {
     // Saralash: Belgilanganlar eng pastga tushadi
     final sortedItems = List.from(items);
     sortedItems.sort((a, b) {
       final aUid = "${artikul}_${category}_${items.indexOf(a)}";
       final bUid = "${artikul}_${category}_${items.indexOf(b)}";
-      final aChecked = ref.read(checklistProvider).contains(aUid) ? 1 : 0;
-      final bChecked = ref.read(checklistProvider).contains(bUid) ? 1 : 0;
+      final aChecked = checkedItems.contains(aUid) ? 1 : 0;
+      final bChecked = checkedItems.contains(bUid) ? 1 : 0;
       return aChecked.compareTo(bChecked);
     });
 
     return sortedItems.map((item) {
       final uid = "${artikul}_${category}_${items.indexOf(item)}";
-      final isChecked = ref.read(checklistProvider).contains(uid);
+      final isChecked = checkedItems.contains(uid);
 
       return InkWell(
         onTap: () => ref.read(checklistProvider.notifier).toggleItem(uid),

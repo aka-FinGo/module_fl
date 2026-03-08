@@ -127,6 +127,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     super.dispose();
   }
 
+  double _pdfScale = 1.0;
+
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(moduleDataProvider);
@@ -200,39 +202,87 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           ),
         ),
         Expanded(
-          child: _isWeb
-              ? buildWebIframe(_getIframeUrl(url, false), false,
-                  key: ValueKey('pdf_${data.artikul}'))
-              : _isLoadingPdf
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.accent))
-                  : _hasPdfError || _pdfController == null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.error_outline,
-                                  size: 48, color: AppColors.textGray),
-                              const SizedBox(height: 16),
-                              const Text(
-                                  'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white),
-                                onPressed: () => _launchURL(url),
-                                icon: const Icon(Icons.open_in_new),
-                                label: const Text('Brauzerda ochish'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : PdfView(
-                          controller: _pdfController!,
-                          scrollDirection: Axis.vertical,
-                          pageSnapping: false,
-                        ),
+          child: Stack(
+            children: [
+              InteractiveViewer(
+                maxScale: 5.0,
+                minScale: 0.5,
+                child: Center(
+                  child: Transform.scale(
+                    scale: _pdfScale,
+                    child: _isWeb
+                        ? buildWebIframe(_getIframeUrl(url, false), false,
+                            key: ValueKey('pdf_${data.artikul}'))
+                        : _isLoadingPdf
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                    color: AppColors.accent))
+                            : _hasPdfError || _pdfController == null
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        const Icon(Icons.error_outline,
+                                            size: 48,
+                                            color: AppColors.textGray),
+                                        const SizedBox(height: 16),
+                                        const Text(
+                                            'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
+                                        const SizedBox(height: 16),
+                                        ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primary,
+                                              foregroundColor: Colors.white),
+                                          onPressed: () => _launchURL(url),
+                                          icon: const Icon(Icons.open_in_new),
+                                          label: const Text('Brauzerda ochish'),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : PdfView(
+                                    controller: _pdfController!,
+                                    scrollDirection: Axis.vertical,
+                                    pageSnapping: false,
+                                  ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: Column(
+                  children: [
+                    FloatingActionButton.small(
+                      heroTag: 'zoom_in',
+                      onPressed: () => setState(() => _pdfScale += 0.25),
+                      backgroundColor: AppColors.primary,
+                      child: const Icon(Icons.add, color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: 'zoom_out',
+                      onPressed: () => setState(() {
+                        if (_pdfScale > 0.5) _pdfScale -= 0.25;
+                      }),
+                      backgroundColor: AppColors.primary,
+                      child: const Icon(Icons.remove, color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    FloatingActionButton.small(
+                      heroTag: 'zoom_reset',
+                      onPressed: () => setState(() => _pdfScale = 1.0),
+                      backgroundColor: Colors.white,
+                      child:
+                          const Icon(Icons.refresh, color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
