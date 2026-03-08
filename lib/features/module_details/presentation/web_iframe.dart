@@ -22,55 +22,7 @@ Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
         ..style.left = '0'
         ..allowFullscreen = true;
 
-      if (isVideo) {
-        // Top-left: Block video title and channel link
-        // We leave the right side (Settings, CC) open
-        final html.DivElement topLeftShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.top = '0'
-          ..style.left = '0'
-          ..style.height = '65px'
-          ..style.width = '70%'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        // Bottom-left: Block Share and Watch Later buttons
-        // Adjusted to be just large enough for the buttons
-        final html.DivElement bottomLeftShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.bottom = '0'
-          ..style.left = '0'
-          ..style.width = '160px'
-          ..style.height = '75px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        // Bottom-right: Block YouTube logo
-        final html.DivElement bottomRightShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.bottom = '0'
-          ..style.right = '0'
-          ..style.width = '100px'
-          ..style.height = '50px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        wrapper.children.addAll(
-            [iframe, topLeftShield, bottomLeftShield, bottomRightShield]);
-      } else {
-        // PDF: Only block top-right pop-out button
-        final html.DivElement topRightShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.top = '0'
-          ..style.right = '0'
-          ..style.width = '80px'
-          ..style.height = '65px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        wrapper.children.addAll([iframe, topRightShield]);
-      }
-
+      wrapper.children.add(iframe);
       return wrapper;
     });
   } catch (e) {

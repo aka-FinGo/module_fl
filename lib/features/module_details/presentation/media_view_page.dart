@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:pdfx/pdfx.dart';
-import 'package:http/http.dart' as http;
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../shell/presentation/shell_page.dart';
@@ -21,18 +19,10 @@ class MediaViewPage extends ConsumerStatefulWidget {
 
 class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   YoutubePlayerController? _ytController;
-  PdfController? _pdfController;
-  final TransformationController _transformationController =
-      TransformationController();
-  bool _isLoadingPdf = false;
-  bool _hasPdfError = false;
-  int _currentPage = 1;
-  int _totalPages = 0;
   final bool _isWeb =
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
   void _toggleFullScreen() {
-    _resetZoom();
     final isFullScreen = ref.read(isFullScreenProvider);
     ref.read(isFullScreenProvider.notifier).state = !isFullScreen;
 
@@ -52,20 +42,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
   }
 
-  void _zoom(double factor) {
-    final matrix = _transformationController.value.clone();
-    final currentScale = matrix.getMaxScaleOnAxis();
-    final newScale = (currentScale * factor).clamp(0.5, 5.0);
-    final ratio = newScale / currentScale;
-
-    matrix.scale(ratio);
-    _transformationController.value = matrix;
-  }
-
-  void _resetZoom() {
-    _transformationController.value = Matrix4.identity();
-  }
-
   void _initYoutube(String url) {
     if (_ytController != null || _isWeb) return;
 
@@ -83,61 +59,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
   }
 
-  void _initPdf(String url) async {
-    if (_pdfController != null || _isLoadingPdf || _hasPdfError || _isWeb)
-      return;
-
-    Future.microtask(() => setState(() => _isLoadingPdf = true));
-
-    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
-    if (match != null) {
-      final fileId = match.group(0);
-      final directUrl =
-          'https://drive.googleusercontent.com/download?id=$fileId&export=download';
-
-      try {
-        final response = await http.get(Uri.parse(directUrl));
-        if (response.statusCode == 200) {
-          final doc = await PdfDocument.openData(response.bodyBytes);
-          _pdfController = PdfController(
-            document: Future.value(doc),
-          );
-          if (mounted) {
-            setState(() {
-              _isLoadingPdf = false;
-              _totalPages = doc.pagesCount;
-            });
-          }
-        } else {
-          throw Exception('PFFFailed');
-        }
-      } catch (e) {
-        if (mounted)
-          setState(() {
-            _hasPdfError = true;
-            _isLoadingPdf = false;
-          });
-      }
-    } else {
-      if (mounted)
-        setState(() {
-          _hasPdfError = true;
-          _isLoadingPdf = false;
-        });
-    }
-  }
-
-  Future<void> _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sikani ochib bo\'lmadi')),
-        );
-      }
-    }
-  }
-
   String _getIframeUrl(String originalUrl, bool isVideo) {
     if (isVideo) {
       String vidId = "";
@@ -152,7 +73,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
     if (match != null) {
       final fileId = match.group(0);
-      return 'https://drive.google.com/file/d/$fileId/preview';
+      return 'https://docs.google.com/viewer?url=${Uri.encodeComponent('https://drive.google.com/uc?export=download&id=$fileId')}&embedded=true';
     }
     return originalUrl;
   }
@@ -168,8 +89,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   @override
   void dispose() {
     _ytController?.dispose();
-    _pdfController?.dispose();
-    _transformationController.dispose();
     if (_isWeb && widget.type == 'pdf') {
       setWebZoomable(false);
     }
@@ -237,34 +156,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       child: Stack(
         children: [
           _buildMediaContent(url, data),
-          // X tugmasini Stackning eng tepasiga qo'yamiz va hit-testingni yaxshilaymiz
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _toggleFullScreen,
-                      borderRadius: BorderRadius.circular(30),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                    ),
+          // X tugmasini Stackning eng tepasiga qo'yamiz
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: PointerInterceptor(
+                child: IconButton(
+                  onPressed: _toggleFullScreen,
+                  icon: const CircleAvatar(
+                    backgroundColor: Colors.black54,
+                    child: Icon(Icons.close, color: Colors.white),
                   ),
                 ),
               ),
@@ -293,147 +194,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               : const Center(child: Text('Noto\'g\'ri video URL'));
     }
 
-    // PDF View
-    _initPdf(url);
-
-    return Stack(
-      children: [
-        InteractiveViewer(
-          transformationController: _transformationController,
-          maxScale: 5.0,
-          minScale: 0.5,
-          child: Center(
-            child: _isWeb
-                ? buildWebIframe(_getIframeUrl(url, false), false,
-                    key: ValueKey('pdf_${data.artikul}'))
-                : _isLoadingPdf
-                    ? const Center(
-                        child:
-                            CircularProgressIndicator(color: AppColors.accent))
-                    : _hasPdfError || _pdfController == null
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.error_outline,
-                                    size: 48, color: AppColors.textGray),
-                                const SizedBox(height: 16),
-                                const Text(
-                                    'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: Colors.white),
-                                  onPressed: () => _launchURL(url),
-                                  icon: const Icon(Icons.open_in_new),
-                                  label: const Text('Brauzerda ochish'),
-                                ),
-                              ],
-                            ),
-                          )
-                        : PdfView(
-                            controller: _pdfController!,
-                            scrollDirection: Axis.vertical,
-                            pageSnapping: false,
-                            onPageChanged: (page) {
-                              setState(() => _currentPage = page);
-                            },
-                          ),
-          ),
-        ),
-        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError)
-          _buildFloatingControlBar(),
-      ],
-    );
-  }
-
-  Widget _buildFloatingControlBar() {
-    final isFullScreen = ref.watch(isFullScreenProvider);
-    return Positioned(
-      bottom: isFullScreen ? 24 : 16,
-      left: 16,
-      right: 16,
-      child: Center(
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_totalPages > 0) ...[
-                    IconButton(
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      icon: const Icon(Icons.chevron_left,
-                          color: Colors.white, size: 18),
-                      onPressed: _currentPage > 1
-                          ? () => _pdfController?.animateToPage(
-                              _currentPage - 1,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeIn)
-                          : null,
-                    ),
-                    Text(
-                      '$_currentPage / $_totalPages',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500),
-                    ),
-                    IconButton(
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(4),
-                      icon: const Icon(Icons.chevron_right,
-                          color: Colors.white, size: 18),
-                      onPressed: _currentPage < _totalPages
-                          ? () => _pdfController?.animateToPage(
-                              _currentPage + 1,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeIn)
-                          : null,
-                    ),
-                    Container(
-                      height: 16,
-                      width: 1,
-                      color: Colors.white24,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                    ),
-                  ],
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(4),
-                    icon:
-                        const Icon(Icons.remove, color: Colors.white, size: 18),
-                    onPressed: () => _zoom(0.8),
-                  ),
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(4),
-                    icon: const Icon(Icons.refresh,
-                        color: Colors.white, size: 16),
-                    onPressed: _resetZoom,
-                  ),
-                  IconButton(
-                    constraints: const BoxConstraints(),
-                    padding: const EdgeInsets.all(4),
-                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                    onPressed: () => _zoom(1.2),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    // PDF View - Endi barcha platformalarda iframe ishlatamiz (GDrive UI chiqishi uchun)
+    return buildWebIframe(_getIframeUrl(url, false), false,
+        key: ValueKey('pdf_${data.artikul}'));
   }
 }

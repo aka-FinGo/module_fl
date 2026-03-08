@@ -18,6 +18,8 @@ dependencies:
   pdfx: ^2.5.0 # PDF larni ichkarida ochish uchun
   flutter_windowmanager: ^0.2.0
   audioplayers: ^6.6.0
+  webview_flutter: ^4.7.0
+  pointer_interceptor: ^0.10.1+1
 
 dev_dependencies:
   flutter_test:
