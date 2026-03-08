@@ -21,33 +21,31 @@ class AristokratApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
-      child: MaterialApp(
-        title: 'Aristokrat Mebel',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primaryColor: AppColors.primary,
-          scaffoldBackgroundColor: AppColors.background,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            centerTitle: true,
-            elevation: 0,
-          ),
-          // BU YERDA XATO BOR EDI: BottomAppBarThemeData bo'lishi kerak
-          bottomAppBarTheme: const BottomAppBarThemeData(
-            color: AppColors.bottomNavBg,
-            elevation: 10,
-          ),
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
-            primary: AppColors.primary,
-            secondary: AppColors.accent,
-          ),
-          useMaterial3: true,
+    return MaterialApp(
+      title: 'Aristokrat Mebel',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primaryColor: AppColors.primary,
+        scaffoldBackgroundColor: AppColors.background,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          elevation: 0,
         ),
-        home: const ShellPage(),
+        // BU YERDA XATO BOR EDI: BottomAppBarThemeData bo'lishi kerak
+        bottomAppBarTheme: const BottomAppBarThemeData(
+          color: AppColors.bottomNavBg,
+          elevation: 10,
+        ),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.primary,
+          primary: AppColors.primary,
+          secondary: AppColors.accent,
+        ),
+        useMaterial3: true,
       ),
+      home: const ShellPage(),
     );
   }
 }

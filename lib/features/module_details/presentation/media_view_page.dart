@@ -26,7 +26,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       TransformationController();
   bool _isLoadingPdf = false;
   bool _hasPdfError = false;
-  bool _isFullScreen = false;
   int _currentPage = 1;
   int _totalPages = 0;
   final bool _isWeb =
@@ -34,24 +33,23 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   void _toggleFullScreen() {
     _resetZoom();
-    setState(() {
-      _isFullScreen = !_isFullScreen;
-      ref.read(isFullScreenProvider.notifier).state = _isFullScreen;
-      if (_isFullScreen) {
-        if (widget.type == 'video') {
-          SystemChrome.setPreferredOrientations([
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ]);
-        }
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
+    final isFullScreen = ref.read(isFullScreenProvider);
+    ref.read(isFullScreenProvider.notifier).state = !isFullScreen;
+
+    if (!isFullScreen) {
+      if (widget.type == 'video') {
         SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
         ]);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
-    });
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
   }
 
   void _zoom(double factor) {
@@ -184,7 +182,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isFullScreen) {
+    final isFullScreen = ref.watch(isFullScreenProvider);
+    if (isFullScreen) {
       return _buildFullScreenView();
     }
 
@@ -238,14 +237,36 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       child: Stack(
         children: [
           _buildMediaContent(url, data),
+          // X tugmasini Stackning eng tepasiga qo'yamiz va hit-testingni yaxshilaymiz
           Positioned(
-            top: 40,
-            left: 16,
-            child: CircleAvatar(
-              backgroundColor: Colors.black54,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: _toggleFullScreen,
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _toggleFullScreen,
+                      borderRadius: BorderRadius.circular(30),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Colors.black54,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -321,15 +342,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                           ),
           ),
         ),
-        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError && !_isWeb)
+        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError)
           _buildFloatingControlBar(),
       ],
     );
   }
 
   Widget _buildFloatingControlBar() {
+    final isFullScreen = ref.watch(isFullScreenProvider);
     return Positioned(
-      bottom: _isFullScreen ? 24 : 16,
+      bottom: isFullScreen ? 24 : 16,
       left: 16,
       right: 16,
       child: Center(

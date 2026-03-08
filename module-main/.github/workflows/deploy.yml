@@ -1,0 +1,30 @@
+name: Deploy PWA to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # Agar asosiy branch nomingiz master bo'lsa, buni master deb o'zgartiring
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repozitoriydan kodni olish (Checkout)
+        uses: actions/checkout@v4
+
+      - name: URL manzilni app.js ichiga kiritish (Inject Secret)
+        env:
+          API_URL: ${{ secrets.WEB_APP_URL }}
+        run: |
+          sed -i "s|INJECT_API_URL_HERE|$API_URL|g" app.js
+
+      - name: GitHub Pages ga yuklash (Deploy)
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
