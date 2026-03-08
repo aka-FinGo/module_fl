@@ -154,12 +154,25 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                             child: buildWebIframe(_getIframeUrl(url, true),
                                 key: ValueKey('vid_${data.artikul}')),
                           ),
-                          // Anti-leak shield
-                          Positioned.fill(
+                          // Top shield (Blocks Title and Share)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 60,
                             child: GestureDetector(
                               onTap: () {},
-                              onDoubleTap: () {},
-                              onLongPress: () {},
+                              child: Container(color: Colors.transparent),
+                            ),
+                          ),
+                          // Bottom right shield (Blocks YouTube logo)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            width: 100,
+                            height: 60,
+                            child: GestureDetector(
+                              onTap: () {},
                               child: Container(color: Colors.transparent),
                             ),
                           ),
@@ -211,12 +224,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                       child: buildWebIframe(_getIframeUrl(url, false),
                           key: ValueKey('pdf_${data.artikul}')),
                     ),
-                    // Anti-leak shield
-                    Positioned.fill(
+                    // Top right shield (Blocks PDF Pop-out button)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      width: 60,
+                      height: 60,
                       child: GestureDetector(
                         onTap: () {},
-                        onDoubleTap: () {},
-                        onLongPress: () {},
                         child: Container(color: Colors.transparent),
                       ),
                     ),
