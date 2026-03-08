@@ -20,6 +20,8 @@ class MediaViewPage extends ConsumerStatefulWidget {
 class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   YoutubePlayerController? _ytController;
   PdfController? _pdfController;
+  final TransformationController _transformationController =
+      TransformationController();
   bool _isLoadingPdf = false;
   bool _hasPdfError = false;
   bool _isFullScreen = false;
@@ -44,6 +46,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     });
+  }
+
+  void _zoom(double factor) {
+    final matrix = _transformationController.value.clone();
+    final currentScale = matrix.getMaxScaleOnAxis();
+    final newScale = (currentScale * factor).clamp(0.5, 5.0);
+    final ratio = newScale / currentScale;
+
+    matrix.scale(ratio);
+    _transformationController.value = matrix;
+  }
+
+  void _resetZoom() {
+    _transformationController.value = Matrix4.identity();
   }
 
   void _initYoutube(String url) {
@@ -143,6 +159,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   void dispose() {
     _ytController?.dispose();
     _pdfController?.dispose();
+    _transformationController.dispose();
     if (_isWeb && widget.type == 'pdf') {
       setWebZoomable(false);
     }
@@ -152,8 +169,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
-
-  double _pdfScale = 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -251,46 +266,44 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return Stack(
       children: [
         InteractiveViewer(
+          transformationController: _transformationController,
           maxScale: 5.0,
           minScale: 0.5,
           child: Center(
-            child: Transform.scale(
-              scale: _pdfScale,
-              child: _isWeb
-                  ? buildWebIframe(_getIframeUrl(url, false), false,
-                      key: ValueKey('pdf_${data.artikul}'))
-                  : _isLoadingPdf
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                              color: AppColors.accent))
-                      : _hasPdfError || _pdfController == null
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.error_outline,
-                                      size: 48, color: AppColors.textGray),
-                                  const SizedBox(height: 16),
-                                  const Text(
-                                      'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
-                                  const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.primary,
-                                        foregroundColor: Colors.white),
-                                    onPressed: () => _launchURL(url),
-                                    icon: const Icon(Icons.open_in_new),
-                                    label: const Text('Brauzerda ochish'),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : PdfView(
-                              controller: _pdfController!,
-                              scrollDirection: Axis.vertical,
-                              pageSnapping: false,
+            child: _isWeb
+                ? buildWebIframe(_getIframeUrl(url, false), false,
+                    key: ValueKey('pdf_${data.artikul}'))
+                : _isLoadingPdf
+                    ? const Center(
+                        child:
+                            CircularProgressIndicator(color: AppColors.accent))
+                    : _hasPdfError || _pdfController == null
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.error_outline,
+                                    size: 48, color: AppColors.textGray),
+                                const SizedBox(height: 16),
+                                const Text(
+                                    'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white),
+                                  onPressed: () => _launchURL(url),
+                                  icon: const Icon(Icons.open_in_new),
+                                  label: const Text('Brauzerda ochish'),
+                                ),
+                              ],
                             ),
-            ),
+                          )
+                        : PdfView(
+                            controller: _pdfController!,
+                            scrollDirection: Axis.vertical,
+                            pageSnapping: false,
+                          ),
           ),
         ),
         if (!_isFullScreen)
@@ -301,23 +314,21 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               children: [
                 FloatingActionButton.small(
                   heroTag: 'zoom_in',
-                  onPressed: () => setState(() => _pdfScale += 0.25),
+                  onPressed: () => _zoom(1.2),
                   backgroundColor: AppColors.primary,
                   child: const Icon(Icons.add, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 FloatingActionButton.small(
                   heroTag: 'zoom_out',
-                  onPressed: () => setState(() {
-                    if (_pdfScale > 0.5) _pdfScale -= 0.25;
-                  }),
+                  onPressed: () => _zoom(0.8),
                   backgroundColor: AppColors.primary,
                   child: const Icon(Icons.remove, color: Colors.white),
                 ),
                 const SizedBox(height: 8),
                 FloatingActionButton.small(
                   heroTag: 'zoom_reset',
-                  onPressed: () => setState(() => _pdfScale = 1.0),
+                  onPressed: _resetZoom,
                   backgroundColor: Colors.white,
                   child: const Icon(Icons.refresh, color: AppColors.primary),
                 ),

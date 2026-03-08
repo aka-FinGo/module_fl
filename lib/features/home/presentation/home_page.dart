@@ -44,10 +44,16 @@ class HomePage extends ConsumerWidget {
               borderRadius: BorderRadius.circular(4),
               child: fileId != null
                   ? Image.network(
-                      'https://drive.google.com/thumbnail?id=$fileId&sz=w100-h100',
+                      'https://lh3.googleusercontent.com/d/$fileId',
                       width: 50,
                       height: 50,
-                      fit: BoxFit.cover)
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                          width: 50,
+                          height: 50,
+                          color: AppColors.background,
+                          child: const Icon(Icons.broken_image, size: 20)),
+                    )
                   : Container(
                       width: 50,
                       height: 50,
