@@ -41716,7 +41716,7 @@ $1(a){return"Aristokrat Mebel"},
 $S:361}
 A.Lt.prototype={
 nZ(a,b){var s=this,r=null,q=b.kf($.VW(),t.S),p=b.kf($.uT(),t.N),o=b.kf($.EO(),t.Pe),n=A.arM(r,r,A.fL(p,B.jB,r)),m=A.aBF([B.Cf,B.Hg,B.Hh,B.HD][q],B.P,A.aLy()),l=o!=null
-return A.aux(n,r,m,new A.vk(A.oP(A.c([s.uQ(b,B.Cn,"Tarix",0,q,!0),s.uQ(b,B.Ci,"Chizma",1,q,l),B.Lr,s.uQ(b,B.Cu,"Video",2,q,l),s.uQ(b,B.Cz,"Furnitura",3,q,l)],t.E),B.a5,B.dx,B.ai,0),B.BQ,B.yS,6,r),new A.wN(B.CI,B.ay,B.zT,new A.abG(a),B.hu,B.S1,r),B.kT)},
+return A.aux(n,r,m,new A.vk(A.oP(A.c([s.uQ(b,B.Cn,"Bosh sahifa",0,q,!0),s.uQ(b,B.Ci,"Chizma",1,q,l),B.Lr,s.uQ(b,B.Cu,"Video",2,q,l),s.uQ(b,B.Cz,"Furnitura",3,q,l)],t.E),B.a5,B.dx,B.ai,0),B.BQ,B.yS,6,r),new A.wN(B.CI,B.ay,B.zT,new A.abG(a),B.hu,B.S1,r),B.kT)},
 uQ(a,b,c,d,e,f){var s,r,q,p=null
 if(f)s=d===e?B.ay:B.F
 else s=B.B_
