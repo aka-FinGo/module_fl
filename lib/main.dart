@@ -12,30 +12,33 @@ class AristokratApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Aristokrat Mebel',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: AppColors.primary,
-        scaffoldBackgroundColor: AppColors.background,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          centerTitle: true,
-          elevation: 0,
+    return ProviderScope(
+      child: MaterialApp(
+        title: 'Aristokrat Mebel',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          primaryColor: AppColors.primary,
+          scaffoldBackgroundColor: AppColors.background,
+          appBarTheme: const AppBarTheme(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            centerTitle: true,
+            elevation: 0,
+          ),
+          // BU YERDA XATO BOR EDI: BottomAppBarThemeData bo'lishi kerak
+          bottomAppBarTheme: const BottomAppBarThemeData(
+            color: AppColors.bottomNavBg,
+            elevation: 10,
+          ),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: AppColors.primary,
+            primary: AppColors.primary,
+            secondary: AppColors.accent,
+          ),
+          useMaterial3: true,
         ),
-        bottomAppBarTheme: const BottomAppBarTheme(
-          color: AppColors.bottomNavBg,
-          elevation: 10,
-        ),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.primary,
-          primary: AppColors.primary,
-          secondary: AppColors.accent,
-        ),
-        useMaterial3: true,
+        home: const ShellPage(),
       ),
-      home: const ShellPage(),
     );
   }
 }
