@@ -148,36 +148,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                     padding: const EdgeInsets.all(8.0),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: buildWebIframe(_getIframeUrl(url, true),
-                                key: ValueKey('vid_${data.artikul}')),
-                          ),
-                          // Top shield (Blocks Title and Share)
-                          Positioned(
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            height: 60,
-                            child: GestureDetector(
-                              onTap: () {},
-                              child: Container(color: Colors.transparent),
-                            ),
-                          ),
-                          // Bottom right shield (Blocks YouTube logo)
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            width: 100,
-                            height: 60,
-                            child: GestureDetector(
-                              onTap: () {},
-                              child: Container(color: Colors.transparent),
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: buildWebIframe(_getIframeUrl(url, true),
+                          key: ValueKey('vid_${data.artikul}')),
                     ),
                   )
                 : _ytController != null
@@ -218,25 +190,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         ),
         Expanded(
           child: _isWeb
-              ? Stack(
-                  children: [
-                    Positioned.fill(
-                      child: buildWebIframe(_getIframeUrl(url, false),
-                          key: ValueKey('pdf_${data.artikul}')),
-                    ),
-                    // Top right shield (Blocks PDF Pop-out button)
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      width: 60,
-                      height: 60,
-                      child: GestureDetector(
-                        onTap: () {},
-                        child: Container(color: Colors.transparent),
-                      ),
-                    ),
-                  ],
-                )
+              ? buildWebIframe(_getIframeUrl(url, false),
+                  key: ValueKey('pdf_${data.artikul}'))
               : _isLoadingPdf
                   ? const Center(
                       child: CircularProgressIndicator(color: AppColors.accent))
