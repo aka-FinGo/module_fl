@@ -12,8 +12,6 @@
   <meta name="apple-mobile-web-app-title" content="Aristokrat">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>Aristokrat Mebel</title>
@@ -21,15 +19,19 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://unpkg.com/@zxing/library@latest"></script>
+
+  <script>
+    // Service Worker keshini boshqarish va yangilash
+    var serviceWorkerVersion = null;
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
 </head>
 <body>
-  <script src="flutter_bootstrap.js" async></script>
-  
   <script>
-    // PWA muhitida kamera apparatini uyg'otish testi
     window.addEventListener('load', function(ev) {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        console.log("Kamera drayveri aniqlandi.");
+      // Service Worker-ni ro'yxatdan o'tkazish (PWA o'rnatilishi uchun shart)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
       }
     });
   </script>
