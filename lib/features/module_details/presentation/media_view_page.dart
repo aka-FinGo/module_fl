@@ -226,13 +226,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 builder: (context, orientation) {
                   final height =
                       orientation == Orientation.portrait ? 80.0 : 60.0;
-                  return Container(
-                    height: height,
-                    color: Colors.black.withOpacity(0.9),
-                    child: const Center(
-                      child: Text(
-                        'Xavfsiz Ko\'rish Rejimi',
-                        style: TextStyle(color: Colors.white54, fontSize: 10),
+                  return PointerInterceptor(
+                    child: Container(
+                      height: height,
+                      color: Colors.black.withOpacity(0.9),
+                      child: const Center(
+                        child: Text(
+                          'Xavfsiz Ko\'rish Rejimi',
+                          style: TextStyle(color: Colors.white54, fontSize: 10),
+                        ),
                       ),
                     ),
                   );

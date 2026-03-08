@@ -110,6 +110,9 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
           ValueListenableBuilder(
             valueListenable: controller,
             builder: (context, state, child) {
+              if (!state.isInitialized) {
+                return const SizedBox.shrink();
+              }
               final torchState = state.torchState;
               return IconButton(
                 color: Colors.white,
@@ -117,8 +120,24 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
                   torchState == TorchState.on
                       ? Icons.flash_on
                       : Icons.flash_off,
+                  color: torchState == TorchState.unavailable
+                      ? Colors.grey
+                      : Colors.white,
                 ),
-                onPressed: () => controller.toggleTorch(),
+                onPressed: torchState == TorchState.unavailable
+                    ? null
+                    : () async {
+                        try {
+                          await controller.toggleTorch();
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Fonarni yoqib bo\'lmadi')),
+                            );
+                          }
+                        }
+                      },
               );
             },
           ),

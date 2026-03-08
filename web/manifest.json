@@ -3,8 +3,8 @@
     "short_name": "Cabix",
     "start_url": "/module_fl/",
     "display": "standalone",
-    "background_color": "#FFC107",
-    "theme_color": "#FFC107",
+    "background_color": "#2C3E50",
+    "theme_color": "#2C3E50",
     "description": "Cabix Konveyer ERP tizimi.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
@@ -33,5 +33,5 @@
             "type": "image/png",
             "purpose": "maskable"
         }
-      ]
+    ]
 }

@@ -20,14 +20,21 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        val project = this
-        if (project.hasProperty("android")) {
-            val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
-            if (android.namespace == null) {
-                // Use the project group as a fallback namespace
-                android.namespace = (project.group.toString().takeIf { it.isNotEmpty() } ?: "com.example.${project.name}")
-            }
+    val project = this
+    if (project.state.executed) {
+        configureNamespace(project)
+    } else {
+        project.afterEvaluate {
+            configureNamespace(project)
+        }
+    }
+}
+
+fun configureNamespace(project: Project) {
+    if (project.hasProperty("android")) {
+        val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
+        if (android.namespace == null) {
+            android.namespace = (project.group.toString().takeIf { it.isNotEmpty() } ?: "com.example.${project.name}")
         }
     }
 }
