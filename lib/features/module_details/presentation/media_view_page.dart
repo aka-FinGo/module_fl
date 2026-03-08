@@ -104,7 +104,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
     if (match != null) {
       final fileId = match.group(0);
-      return 'https://docs.google.com/viewer?url=https://drive.google.com/uc?export=download&id=$fileId&embedded=true';
+      return 'https://drive.google.com/file/d/$fileId/preview';
     }
     return originalUrl;
   }
@@ -148,8 +148,23 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                     padding: const EdgeInsets.all(8.0),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: buildWebIframe(_getIframeUrl(url, true),
-                          key: ValueKey('vid_${data.artikul}')),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: buildWebIframe(_getIframeUrl(url, true),
+                                key: ValueKey('vid_${data.artikul}')),
+                          ),
+                          // Anti-leak shield
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: () {},
+                              onDoubleTap: () {},
+                              onLongPress: () {},
+                              child: Container(color: Colors.transparent),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : _ytController != null
@@ -190,8 +205,23 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         ),
         Expanded(
           child: _isWeb
-              ? buildWebIframe(_getIframeUrl(url, false),
-                  key: ValueKey('pdf_${data.artikul}'))
+              ? Stack(
+                  children: [
+                    Positioned.fill(
+                      child: buildWebIframe(_getIframeUrl(url, false),
+                          key: ValueKey('pdf_${data.artikul}')),
+                    ),
+                    // Anti-leak shield
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: () {},
+                        onDoubleTap: () {},
+                        onLongPress: () {},
+                        child: Container(color: Colors.transparent),
+                      ),
+                    ),
+                  ],
+                )
               : _isLoadingPdf
                   ? const Center(
                       child: CircularProgressIndicator(color: AppColors.accent))

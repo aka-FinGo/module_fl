@@ -4,6 +4,7 @@ import 'core/constants/app_colors.dart';
 import 'features/shell/presentation/shell_page.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const ProviderScope(child: AristokratApp()));
 }
 
