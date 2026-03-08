@@ -68,6 +68,7 @@ Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
           ..style.backgroundColor = 'transparent'
           ..style.zIndex = '999';
 
+        wrapper.style.backgroundColor = 'white';
         wrapper.children.addAll([iframe, topRightShield]);
       }
       return wrapper;

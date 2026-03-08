@@ -21,7 +21,7 @@ class _MobileWebViewState extends State<_MobileWebView> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
+      ..setBackgroundColor(Colors.white) // Fixed: White for clarity
       ..loadRequest(Uri.parse(widget.url));
   }
 
