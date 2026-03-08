@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isLoadingPdf = false;
   bool _hasPdfError = false;
   bool _isFullScreen = false;
+  int _currentPage = 1;
+  int _totalPages = 0;
   final bool _isWeb =
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
@@ -94,10 +97,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       try {
         final response = await http.get(Uri.parse(directUrl));
         if (response.statusCode == 200) {
+          final doc = await PdfDocument.openData(response.bodyBytes);
           _pdfController = PdfController(
-            document: PdfDocument.openData(response.bodyBytes),
+            document: Future.value(doc),
           );
-          if (mounted) setState(() => _isLoadingPdf = false);
+          if (mounted) {
+            setState(() {
+              _isLoadingPdf = false;
+              _totalPages = doc.pagesCount;
+            });
+          }
         } else {
           throw Exception('PFFFailed');
         }
@@ -303,39 +312,87 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                             controller: _pdfController!,
                             scrollDirection: Axis.vertical,
                             pageSnapping: false,
+                            onPageChanged: (page) {
+                              setState(() => _currentPage = page);
+                            },
                           ),
           ),
         ),
-        if (!_isFullScreen)
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: Column(
-              children: [
-                FloatingActionButton.small(
-                  heroTag: 'zoom_in',
-                  onPressed: () => _zoom(1.2),
-                  backgroundColor: AppColors.primary,
-                  child: const Icon(Icons.add, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: 'zoom_out',
-                  onPressed: () => _zoom(0.8),
-                  backgroundColor: AppColors.primary,
-                  child: const Icon(Icons.remove, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: 'zoom_reset',
-                  onPressed: _resetZoom,
-                  backgroundColor: Colors.white,
-                  child: const Icon(Icons.refresh, color: AppColors.primary),
-                ),
-              ],
+        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError)
+          _buildFloatingControlBar(),
+      ],
+    );
+  }
+
+  Widget _buildFloatingControlBar() {
+    return Positioned(
+      bottom: 24,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Page Indicator
+                  if (!_isWeb && _totalPages > 0) ...[
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      onPressed: _currentPage > 1
+                          ? () => _pdfController?.animateToPage(
+                              _currentPage - 1,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeIn)
+                          : null,
+                    ),
+                    Text(
+                      'Page $_currentPage / $_totalPages',
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                    IconButton(
+                      icon:
+                          const Icon(Icons.chevron_right, color: Colors.white),
+                      onPressed: _currentPage < _totalPages
+                          ? () => _pdfController?.animateToPage(
+                              _currentPage + 1,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeIn)
+                          : null,
+                    ),
+                    const VerticalDivider(color: Colors.white24, width: 20),
+                  ],
+                  // Zoom Controls
+                  IconButton(
+                    icon: const Icon(Icons.remove, color: Colors.white),
+                    onPressed: () => _zoom(0.8),
+                    tooltip: 'Yaqinlashtirishni kamaytirish',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    onPressed: _resetZoom,
+                    tooltip: 'Asl holat',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    onPressed: () => _zoom(1.2),
+                    tooltip: 'Yaqinlashtirish',
+                  ),
+                ],
+              ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }

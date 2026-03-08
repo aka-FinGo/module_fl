@@ -17,6 +17,7 @@ dependencies:
   youtube_player_flutter: ^8.1.2
   pdfx: ^2.5.0 # PDF larni ichkarida ochish uchun
   flutter_windowmanager: ^0.2.0
+  audioplayers: ^6.6.0
 
 dev_dependencies:
   flutter_test:

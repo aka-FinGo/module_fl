@@ -66,29 +66,48 @@ class ShellPage extends ConsumerWidget {
 
   Widget _navItem(WidgetRef ref, IconData icon, String label, int index,
       int current, bool enabled) {
+    final isActive = index == current;
     final color = enabled
-        ? (index == current ? AppColors.accent : Colors.white70)
+        ? (isActive ? AppColors.accent : Colors.white70)
         : Colors.white24;
-    return InkWell(
-      onTap: enabled
-          ? () {
-              ref.read(bottomNavIndexProvider.notifier).state = index;
-              if (index == 0)
-                ref.read(appBarTitleProvider.notifier).state =
-                    'Aristokrat Mebel';
-            }
-          : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 22),
-          Text(label,
-              style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight:
-                      index == current ? FontWeight.bold : FontWeight.normal)),
-        ],
+
+    return Expanded(
+      child: InkWell(
+        onTap: enabled
+            ? () {
+                ref.read(bottomNavIndexProvider.notifier).state = index;
+                if (index == 0) {
+                  ref.read(appBarTitleProvider.notifier).state =
+                      'Aristokrat Mebel';
+                }
+              }
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: isActive ? 24 : 20),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight:
+                          isActive ? FontWeight.bold : FontWeight.normal)),
+              if (isActive)
+                Container(
+                  margin: const EdgeInsets.only(top: 2),
+                  height: 2,
+                  width: 12,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

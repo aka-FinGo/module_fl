@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/api_repository.dart';
 import '../../home/controllers/history_controller.dart';
@@ -14,33 +15,47 @@ class ScannerPage extends ConsumerStatefulWidget {
 }
 
 class _ScannerPageState extends ConsumerState<ScannerPage> {
-  // DetectionSpeed.noDuplicates — qotishning oldini oluvchi eng asosiy sozlama
   late MobileScannerController controller;
   bool _isProcessing = false;
+  final AudioPlayer _player = AudioPlayer();
 
   @override
   void initState() {
     super.initState();
     controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       torchEnabled: false,
+      formats: [
+        BarcodeFormat.qrCode,
+        BarcodeFormat.code128,
+        BarcodeFormat.code39,
+        BarcodeFormat.ean13,
+      ],
     );
   }
 
   @override
   void dispose() {
     controller.dispose();
+    _player.dispose();
     super.dispose();
   }
 
   void _handleCapture(BarcodeCapture capture) async {
-    if (_isProcessing)
-      return; // Ma'lumot tahlil qilinayotgan bo'lsa, qabul qilmaydi
+    if (_isProcessing) return;
 
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
       final String code = barcodes.first.rawValue!;
+
+      // Play beep sound
+      try {
+        await _player.play(UrlSource(
+            'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'));
+      } catch (e) {
+        // Ignore playback errors
+      }
 
       setState(() {
         _isProcessing = true;
