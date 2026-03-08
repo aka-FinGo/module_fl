@@ -20,6 +20,9 @@ dependencies:
   audioplayers: ^6.6.0
   webview_flutter: ^4.7.0
   pointer_interceptor: ^0.10.1+1
+  connectivity_plus: ^6.0.3
+  flutter_cache_manager: ^3.3.1
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:
