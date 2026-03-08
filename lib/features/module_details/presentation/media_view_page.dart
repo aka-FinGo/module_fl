@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -21,8 +22,29 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   PdfController? _pdfController;
   bool _isLoadingPdf = false;
   bool _hasPdfError = false;
+  bool _isFullScreen = false;
   final bool _isWeb =
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
+
+  void _toggleFullScreen() {
+    setState(() {
+      _isFullScreen = !_isFullScreen;
+      if (_isFullScreen) {
+        if (widget.type == 'video') {
+          SystemChrome.setPreferredOrientations([
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ]);
+        }
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+    });
+  }
 
   void _initYoutube(String url) {
     if (_ytController != null || _isWeb) return;
@@ -124,6 +146,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (_isWeb && widget.type == 'pdf') {
       setWebZoomable(false);
     }
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -131,60 +157,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isFullScreen) {
+      return _buildFullScreenView();
+    }
+
     final data = ref.watch(moduleDataProvider);
     if (data == null) return const Center(child: Text('Ma\'lumot yo\'q'));
 
     final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
     if (url.isEmpty) return const Center(child: Text('Fayl kiritilmagan'));
-
-    if (widget.type == 'video') {
-      _initYoutube(url);
-      return Column(
-        children: [
-          const SizedBox(height: 10),
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(data.artikul,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18)),
-                const Icon(Icons.video_library, color: AppColors.accent),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _isWeb
-                ? Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: buildWebIframe(_getIframeUrl(url, true), true,
-                          key: ValueKey('vid_${data.artikul}')),
-                    ),
-                  )
-                : _ytController != null
-                    ? Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: YoutubePlayer(
-                            controller: _ytController!,
-                            showVideoProgressIndicator: true,
-                            progressIndicatorColor: AppColors.accent,
-                          ),
-                        ),
-                      )
-                    : const Center(child: Text('Noto\'g\'ri video URL')),
-          ),
-        ],
-      );
-    }
-
-    // PDF View
-    _initPdf(url);
 
     return Column(
       children: [
@@ -194,96 +175,155 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(data.artikul,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 18)),
-              const Icon(Icons.picture_as_pdf, color: AppColors.danger),
+              Expanded(
+                child: Text(data.artikul,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
+              ),
+              IconButton(
+                onPressed: _toggleFullScreen,
+                icon: const Icon(Icons.fullscreen),
+                tooltip: 'To\'liq ekran',
+              ),
+              Icon(
+                widget.type == 'video'
+                    ? Icons.video_library
+                    : Icons.picture_as_pdf,
+                color: widget.type == 'video'
+                    ? AppColors.accent
+                    : AppColors.danger,
+              ),
             ],
           ),
         ),
-        Expanded(
-          child: Stack(
-            children: [
-              InteractiveViewer(
-                maxScale: 5.0,
-                minScale: 0.5,
-                child: Center(
-                  child: Transform.scale(
-                    scale: _pdfScale,
-                    child: _isWeb
-                        ? buildWebIframe(_getIframeUrl(url, false), false,
-                            key: ValueKey('pdf_${data.artikul}'))
-                        : _isLoadingPdf
-                            ? const Center(
-                                child: CircularProgressIndicator(
-                                    color: AppColors.accent))
-                            : _hasPdfError || _pdfController == null
-                                ? Center(
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.error_outline,
-                                            size: 48,
-                                            color: AppColors.textGray),
-                                        const SizedBox(height: 16),
-                                        const Text(
-                                            'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
-                                        const SizedBox(height: 16),
-                                        ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  AppColors.primary,
-                                              foregroundColor: Colors.white),
-                                          onPressed: () => _launchURL(url),
-                                          icon: const Icon(Icons.open_in_new),
-                                          label: const Text('Brauzerda ochish'),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                : PdfView(
-                                    controller: _pdfController!,
-                                    scrollDirection: Axis.vertical,
-                                    pageSnapping: false,
+        Expanded(child: _buildMediaContent(url, data)),
+      ],
+    );
+  }
+
+  Widget _buildFullScreenView() {
+    final data = ref.read(moduleDataProvider);
+    if (data == null) return const SizedBox();
+    final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
+
+    return Container(
+      color: Colors.black,
+      child: Stack(
+        children: [
+          _buildMediaContent(url, data),
+          Positioned(
+            top: 40,
+            left: 16,
+            child: CircleAvatar(
+              backgroundColor: Colors.black54,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _toggleFullScreen,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMediaContent(String url, var data) {
+    if (widget.type == 'video') {
+      _initYoutube(url);
+      return _isWeb
+          ? Padding(
+              padding: const EdgeInsets.all(0.0),
+              child: buildWebIframe(_getIframeUrl(url, true), true,
+                  key: ValueKey('vid_${data.artikul}')),
+            )
+          : _ytController != null
+              ? YoutubePlayer(
+                  controller: _ytController!,
+                  showVideoProgressIndicator: true,
+                  progressIndicatorColor: AppColors.accent,
+                )
+              : const Center(child: Text('Noto\'g\'ri video URL'));
+    }
+
+    // PDF View
+    _initPdf(url);
+
+    return Stack(
+      children: [
+        InteractiveViewer(
+          maxScale: 5.0,
+          minScale: 0.5,
+          child: Center(
+            child: Transform.scale(
+              scale: _pdfScale,
+              child: _isWeb
+                  ? buildWebIframe(_getIframeUrl(url, false), false,
+                      key: ValueKey('pdf_${data.artikul}'))
+                  : _isLoadingPdf
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                              color: AppColors.accent))
+                      : _hasPdfError || _pdfController == null
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.error_outline,
+                                      size: 48, color: AppColors.textGray),
+                                  const SizedBox(height: 16),
+                                  const Text(
+                                      'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.primary,
+                                        foregroundColor: Colors.white),
+                                    onPressed: () => _launchURL(url),
+                                    icon: const Icon(Icons.open_in_new),
+                                    label: const Text('Brauzerda ochish'),
                                   ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 16,
-                bottom: 16,
-                child: Column(
-                  children: [
-                    FloatingActionButton.small(
-                      heroTag: 'zoom_in',
-                      onPressed: () => setState(() => _pdfScale += 0.25),
-                      backgroundColor: AppColors.primary,
-                      child: const Icon(Icons.add, color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'zoom_out',
-                      onPressed: () => setState(() {
-                        if (_pdfScale > 0.5) _pdfScale -= 0.25;
-                      }),
-                      backgroundColor: AppColors.primary,
-                      child: const Icon(Icons.remove, color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    FloatingActionButton.small(
-                      heroTag: 'zoom_reset',
-                      onPressed: () => setState(() => _pdfScale = 1.0),
-                      backgroundColor: Colors.white,
-                      child:
-                          const Icon(Icons.refresh, color: AppColors.primary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                                ],
+                              ),
+                            )
+                          : PdfView(
+                              controller: _pdfController!,
+                              scrollDirection: Axis.vertical,
+                              pageSnapping: false,
+                            ),
+            ),
           ),
         ),
+        if (!_isFullScreen)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: Column(
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'zoom_in',
+                  onPressed: () => setState(() => _pdfScale += 0.25),
+                  backgroundColor: AppColors.primary,
+                  child: const Icon(Icons.add, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton.small(
+                  heroTag: 'zoom_out',
+                  onPressed: () => setState(() {
+                    if (_pdfScale > 0.5) _pdfScale -= 0.25;
+                  }),
+                  backgroundColor: AppColors.primary,
+                  child: const Icon(Icons.remove, color: Colors.white),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton.small(
+                  heroTag: 'zoom_reset',
+                  onPressed: () => setState(() => _pdfScale = 1.0),
+                  backgroundColor: Colors.white,
+                  child: const Icon(Icons.refresh, color: AppColors.primary),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
