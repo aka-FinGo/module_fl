@@ -1,0 +1,12 @@
+# This file tracks properties of this Flutter project.
+# Used by Flutter tool to assess project and handle upgrades.
+version:
+  revision: 3.41.4 # Sizning Actions'dagi Flutter versiyangiz
+  channel: stable
+
+project_type: app
+
+# Muhim qism shu yerda:
+platforms:
+  web:
+    name: web
