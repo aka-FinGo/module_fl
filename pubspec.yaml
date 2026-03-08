@@ -13,8 +13,11 @@ dependencies:
   mobile_scanner: ^5.0.0
   http: ^1.2.1
   shared_preferences: ^2.2.2
-  url_launcher: ^6.3.0 # BU MUHIM: Xatolikni yo'qotadi
+  url_launcher: ^6.3.0
   youtube_player_flutter: ^8.1.2
+  youtube_player_iframe: ^2.3.0 # Qo'shimcha iframe player web uchun yaxshi ishlaydi
+  pdfx: ^2.5.0 # PDF larni ichkarida ochish uchun
+  internet_file: ^1.2.0 # PDF ni tarmoqdan yuklash uchun
   flutter_windowmanager: ^0.2.0
 
 dev_dependencies:

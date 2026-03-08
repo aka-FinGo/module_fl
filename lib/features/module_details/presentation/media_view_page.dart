@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:internet_file/internet_file.dart';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -15,42 +16,72 @@ class MediaViewPage extends ConsumerStatefulWidget {
 
 class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   YoutubePlayerController? _ytController;
+  PdfController? _pdfController;
+  bool _isLoadingPdf = false;
+  bool _hasPdfError = false;
 
   void _initYoutube(String url) {
-    String? videoId = YoutubePlayer.convertUrlToId(url);
-    if (videoId != null && _ytController == null) {
+    if (_ytController != null) return;
+
+    String videoId = '';
+    if (url.contains('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1].split('?')[0];
+    } else if (url.contains('youtube.com/watch')) {
+      videoId = Uri.parse(url).queryParameters['v'] ?? '';
+    }
+
+    if (videoId.isNotEmpty) {
       _ytController = YoutubePlayerController(
         initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: false,
-          mute: false,
-          disableDragSeek: false,
+        params: const YoutubePlayerParams(
+          showControls: true,
+          showFullscreenButton: true,
           loop: false,
-          isLive: false,
-          forceHD: false,
-          enableCaption: true,
-          // XAVFSIZLIK: YouTube logotipi va shareni cheklash
-          hideControls: false,
-          controlsVisibleAtStart: true,
+          enableCaption: false,
         ),
       );
     }
   }
 
-  Future<void> _launchURL(String url) async {
-    final Uri uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Faylni ochib bo\'lmadi')),
+  void _initPdf(String url) async {
+    if (_pdfController != null || _isLoadingPdf || _hasPdfError) return;
+
+    // Future.microtask orqali build cycle dan keyin state o'zgarishini ta'minlaymiz
+    Future.microtask(() => setState(() => _isLoadingPdf = true));
+
+    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
+    if (match != null) {
+      final fileId = match.group(0);
+      final directUrl =
+          'https://drive.googleusercontent.com/download?id=$fileId&export=download';
+
+      try {
+        _pdfController = PdfController(
+          document: PdfDocument.openData(InternetFile.get(directUrl)),
         );
+        if (mounted) setState(() => _isLoadingPdf = false);
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _hasPdfError = true;
+            _isLoadingPdf = false;
+          });
+        }
+      }
+    } else {
+      if (mounted) {
+        setState(() {
+          _hasPdfError = true;
+          _isLoadingPdf = false;
+        });
       }
     }
   }
 
   @override
   void dispose() {
-    _ytController?.dispose();
+    _ytController?.close();
+    _pdfController?.dispose();
     super.dispose();
   }
 
@@ -66,56 +97,70 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       _initYoutube(url);
       return Column(
         children: [
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(data.artikul, style: const TextStyle(fontWeight: FontWeight.bold)),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(data.artikul,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
+                const Icon(Icons.video_library, color: AppColors.accent),
+              ],
+            ),
           ),
-          // Stack orqali YouTube Share va Logotipni bloklash (Pointer Interceptor mantiqi)
-          Stack(
-            children: [
-              YoutubePlayer(
-                controller: _ytController!,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: AppColors.accent,
-              ),
-              // Videoning tepa o'ng burchagidagi "Share" va "YouTube" logotipini bosishdan himoya
-              Positioned(
-                top: 0, right: 0, width: 80, height: 80,
-                child: GestureDetector(onTap: () {}, child: Container(color: Colors.transparent)),
-              ),
-              Positioned(
-                bottom: 0, right: 0, width: 80, height: 50,
-                child: GestureDetector(onTap: () {}, child: Container(color: Colors.transparent)),
-              ),
-            ],
-          ),
-          const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text('Video faqat Aristokrat Mebel xodimlari uchun.', 
-              textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.textGray)),
+          Expanded(
+            child: _ytController != null
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: YoutubePlayerIFrame(
+                        controller: _ytController,
+                        aspectRatio: 16 / 9,
+                      ),
+                    ),
+                  )
+                : const Center(child: Text('Noto\'g\'ri video URL')),
           ),
         ],
       );
     }
 
-    // PDF ko'rinishi (URL Launcher bilan)
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.picture_as_pdf, size: 100, color: AppColors.danger),
-          const SizedBox(height: 20),
-          Text(data.nomi, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 40),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () => _launchURL(url),
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('Chizmani ochish'),
+    // PDF View
+    _initPdf(url);
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(data.artikul,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 18)),
+              const Icon(Icons.picture_as_pdf, color: AppColors.danger),
+            ],
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: _isLoadingPdf
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.accent))
+              : _hasPdfError || _pdfController == null
+                  ? const Center(
+                      child: Text('Chizmani yuklashda xatolik yuz berdi.'))
+                  : PdfView(
+                      controller: _pdfController!,
+                      scrollDirection: Axis.vertical,
+                      pageSnapping: false,
+                    ),
+        ),
+      ],
     );
   }
 }
