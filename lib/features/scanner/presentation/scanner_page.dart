@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/api_repository.dart';
+import '../../home/controllers/history_controller.dart';
 import '../../shell/presentation/shell_page.dart';
 
 class ScannerPage extends ConsumerStatefulWidget {
@@ -13,22 +14,17 @@ class ScannerPage extends ConsumerStatefulWidget {
 }
 
 class _ScannerPageState extends ConsumerState<ScannerPage> {
+  // DetectionSpeed.noDuplicates — qotishning oldini oluvchi eng asosiy sozlama
   late MobileScannerController controller;
-  bool isDetected = false;
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
+      detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
-      formats: const [
-        BarcodeFormat.qrCode,
-        BarcodeFormat.code128,
-        BarcodeFormat.code39,
-        BarcodeFormat.ean13,
-        BarcodeFormat.ean8,
-      ],
+      torchEnabled: false,
     );
   }
 
@@ -38,47 +34,44 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) async {
-    if (isDetected) return;
+  void _handleCapture(BarcodeCapture capture) async {
+    if (_isProcessing) return; // Ma'lumot tahlil qilinayotgan bo'lsa, qabul qilmaydi
     
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
       final String code = barcodes.first.rawValue!;
       
-      setState(() {
-        isDetected = true;
-      });
-
-      // 1. Kamerani darhol muzlatish (Qotib qolmaslik uchun)
-      controller.stop();
+      setState(() { _isProcessing = true; });
       
-      // 2. Navigatsiya va Sarlavha holatlarini yangilash
-      ref.read(bottomNavIndexProvider.notifier).state = 1;
-      ref.read(appBarTitleProvider.notifier).state = 'Artikul: $code';
+      // Riverpod holatlari
+      ref.read(bottomNavIndexProvider.notifier).state = 3; // Furnitura sahifasi
+      ref.read(appBarTitleProvider.notifier).state = 'Yuklanmoqda: $code';
       ref.read(scannedBarcodeProvider.notifier).state = code;
       ref.read(isLoadingProvider.notifier).state = true;
-      
-      // 3. API so'rovini fonda boshlash
-      _fetchData(code);
-      
-      // 4. Skaner oynasidan chiqish
-      if (mounted) {
-        Navigator.pop(context);
-      }
+
+      // API va Tarix saqlash
+      _processScan(code);
+
+      if (mounted) Navigator.pop(context);
     }
   }
 
-  Future<void> _fetchData(String barcode) async {
-    final apiRepo = ref.read(apiRepositoryProvider);
-    final data = await apiRepo.fetchModuleData(barcode);
-    ref.read(moduleDataProvider.notifier).state = data;
-    ref.read(isLoadingProvider.notifier).state = false;
-    
-    // Agar xato bo'lsa, sarlavhani xatoga moslash
-    if (data.error.isNotEmpty) {
-      ref.read(appBarTitleProvider.notifier).state = 'Xatolik yuz berdi';
-    } else {
+  Future<void> _processScan(String code) async {
+    try {
+      final apiRepo = ref.read(apiRepositoryProvider);
+      final data = await apiRepo.fetchModuleData(code);
+      
+      ref.read(moduleDataProvider.notifier).state = data;
+      ref.read(isLoadingProvider.notifier).state = false;
       ref.read(appBarTitleProvider.notifier).state = 'Modul: ${data.artikul}';
+      
+      // Tarixga saqlash
+      if (data.artikul.isNotEmpty) {
+        ref.read(historyProvider.notifier).addEntry(data);
+      }
+    } catch (e) {
+      ref.read(isLoadingProvider.notifier).state = false;
+      ref.read(appBarTitleProvider.notifier).state = 'Xato yuz berdi';
     }
   }
 
@@ -87,43 +80,28 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Skanerlash', style: TextStyle(color: Colors.white)),
-        backgroundColor: AppColors.primary,
+        title: const Text('Barkodni o\'qing', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Stack(
         children: [
           MobileScanner(
             controller: controller,
-            onDetect: _onDetect,
+            onDetect: _handleCapture,
           ),
-          // Skaner ramkasi
+          // Skaner ramkasi (Overlay)
           Center(
             child: Container(
-              width: 250,
-              height: 250,
+              width: 240, height: 240,
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.accent, width: 3),
-                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: AppColors.accent, width: 2),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
-          // Yuklanish holati overlay
-          if (isDetected)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: AppColors.accent),
-                    SizedBox(height: 16),
-                    Text('Ma\'lumotlar yuklanmoqda...', 
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ),
+          if (_isProcessing)
+            const Center(child: CircularProgressIndicator(color: AppColors.accent)),
         ],
       ),
     );
