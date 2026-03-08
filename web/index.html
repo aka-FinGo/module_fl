@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base href="/module_fl/">
+  <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
@@ -26,10 +26,12 @@
   <script src="flutter_bootstrap.js" async></script>
   
   <script>
-    // Brauzerda kamera ruxsatini oldindan tekshirish va uyg'otish
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      console.log("Kamera apparati tayyor.");
-    }
+    // PWA muhitida kamera apparatini uyg'otish testi
+    window.addEventListener('load', function(ev) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        console.log("Kamera drayveri aniqlandi.");
+      }
+    });
   </script>
 </body>
 </html>
