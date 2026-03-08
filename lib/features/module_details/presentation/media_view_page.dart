@@ -8,6 +8,7 @@ import 'package:pdfx/pdfx.dart';
 import 'package:http/http.dart' as http;
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../shell/presentation/shell_page.dart';
 import 'web_iframe_stub.dart' if (dart.library.html) 'web_iframe.dart';
 
 class MediaViewPage extends ConsumerStatefulWidget {
@@ -32,8 +33,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
   void _toggleFullScreen() {
+    _resetZoom();
     setState(() {
       _isFullScreen = !_isFullScreen;
+      ref.read(isFullScreenProvider.notifier).state = _isFullScreen;
       if (_isFullScreen) {
         if (widget.type == 'video') {
           SystemChrome.setPreferredOrientations([
@@ -318,7 +321,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                           ),
           ),
         ),
-        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError)
+        if (widget.type == 'pdf' && !_isLoadingPdf && !_hasPdfError && !_isWeb)
           _buildFloatingControlBar(),
       ],
     );
@@ -326,28 +329,30 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   Widget _buildFloatingControlBar() {
     return Positioned(
-      bottom: 24,
+      bottom: _isFullScreen ? 24 : 16,
       left: 16,
       right: 16,
       child: Center(
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(20),
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.6),
-                borderRadius: BorderRadius.circular(30),
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.white10),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Page Indicator
-                  if (!_isWeb && _totalPages > 0) ...[
+                  if (_totalPages > 0) ...[
                     IconButton(
-                      icon: const Icon(Icons.chevron_left, color: Colors.white),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      icon: const Icon(Icons.chevron_left,
+                          color: Colors.white, size: 18),
                       onPressed: _currentPage > 1
                           ? () => _pdfController?.animateToPage(
                               _currentPage - 1,
@@ -356,12 +361,17 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                           : null,
                     ),
                     Text(
-                      'Page $_currentPage / $_totalPages',
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      '$_currentPage / $_totalPages',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
                     ),
                     IconButton(
-                      icon:
-                          const Icon(Icons.chevron_right, color: Colors.white),
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      icon: const Icon(Icons.chevron_right,
+                          color: Colors.white, size: 18),
                       onPressed: _currentPage < _totalPages
                           ? () => _pdfController?.animateToPage(
                               _currentPage + 1,
@@ -369,23 +379,32 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                               curve: Curves.easeIn)
                           : null,
                     ),
-                    const VerticalDivider(color: Colors.white24, width: 20),
+                    Container(
+                      height: 16,
+                      width: 1,
+                      color: Colors.white24,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                    ),
                   ],
-                  // Zoom Controls
                   IconButton(
-                    icon: const Icon(Icons.remove, color: Colors.white),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon:
+                        const Icon(Icons.remove, color: Colors.white, size: 18),
                     onPressed: () => _zoom(0.8),
-                    tooltip: 'Yaqinlashtirishni kamaytirish',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: const Icon(Icons.refresh,
+                        color: Colors.white, size: 16),
                     onPressed: _resetZoom,
-                    tooltip: 'Asl holat',
                   ),
                   IconButton(
-                    icon: const Icon(Icons.add, color: Colors.white),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
                     onPressed: () => _zoom(1.2),
-                    tooltip: 'Yaqinlashtirish',
                   ),
                 ],
               ),

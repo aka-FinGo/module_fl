@@ -9,6 +9,7 @@ import '../../../data/repositories/api_repository.dart';
 
 final bottomNavIndexProvider = StateProvider<int>((ref) => 0);
 final appBarTitleProvider = StateProvider<String>((ref) => 'Aristokrat Mebel');
+final isFullScreenProvider = StateProvider<bool>((ref) => false);
 
 class ShellPage extends ConsumerWidget {
   const ShellPage({super.key});
@@ -18,6 +19,7 @@ class ShellPage extends ConsumerWidget {
     final currentIndex = ref.watch(bottomNavIndexProvider);
     final title = ref.watch(appBarTitleProvider);
     final moduleData = ref.watch(moduleDataProvider);
+    final isFullScreen = ref.watch(isFullScreenProvider);
 
     final List<Widget> pages = [
       const HomePage(),
@@ -27,40 +29,49 @@ class ShellPage extends ConsumerWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-      ),
+      appBar: isFullScreen
+          ? null
+          : AppBar(
+              title: Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 18)),
+            ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         child: pages[currentIndex],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.accent,
-        shape: const CircleBorder(),
-        onPressed: () => Navigator.push(context,
-            MaterialPageRoute(builder: (context) => const ScannerPage())),
-        child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
-      ),
+      floatingActionButton: isFullScreen
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.accent,
+              shape: const CircleBorder(),
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (context) => const ScannerPage())),
+              child: const Icon(Icons.qr_code_scanner,
+                  color: Colors.white, size: 28),
+            ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6.0,
-        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _navItem(ref, Icons.history, 'Bosh sahifa', 0, currentIndex, true),
-            _navItem(ref, Icons.architecture, 'Chizma', 1, currentIndex,
-                moduleData != null),
-            const SizedBox(width: 40),
-            _navItem(ref, Icons.play_circle_outline, 'Video', 2, currentIndex,
-                moduleData != null),
-            _navItem(ref, Icons.inventory_2_outlined, 'Furnitura', 3,
-                currentIndex, moduleData != null),
-          ],
-        ),
-      ),
+      bottomNavigationBar: isFullScreen
+          ? null
+          : BottomAppBar(
+              shape: const CircularNotchedRectangle(),
+              notchMargin: 6.0,
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _navItem(
+                      ref, Icons.history, 'Bosh sahifa', 0, currentIndex, true),
+                  _navItem(ref, Icons.architecture, 'Chizma', 1, currentIndex,
+                      moduleData != null),
+                  const SizedBox(width: 40),
+                  _navItem(ref, Icons.play_circle_outline, 'Video', 2,
+                      currentIndex, moduleData != null),
+                  _navItem(ref, Icons.inventory_2_outlined, 'Furnitura', 3,
+                      currentIndex, moduleData != null),
+                ],
+              ),
+            ),
     );
   }
 
