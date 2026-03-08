@@ -1,11 +1,11 @@
 {
-    "name": "Aristokrat Mebel ERP",
-    "short_name": "Aristokrat",
+    "name": "Cabix Konveyer ERP",
+    "short_name": "Cabix",
     "start_url": "/module_fl/",
     "display": "standalone",
-    "background_color": "#2C3E50",
-    "theme_color": "#2C3E50",
-    "description": "Aristokrat Mebel korxonasi uchun maxsus.",
+    "background_color": "#FFC107",
+    "theme_color": "#FFC107",
+    "description": "Cabix Konveyer ERP tizimi.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
