@@ -110,9 +110,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    if (_isWeb && widget.type == 'pdf') {
+      setWebZoomable(true);
+    }
+  }
+
+  @override
   void dispose() {
     _ytController?.dispose();
     _pdfController?.dispose();
+    if (_isWeb && widget.type == 'pdf') {
+      setWebZoomable(false);
+    }
     super.dispose();
   }
 
@@ -148,7 +159,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                     padding: const EdgeInsets.all(8.0),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: buildWebIframe(_getIframeUrl(url, true),
+                      child: buildWebIframe(_getIframeUrl(url, true), true,
                           key: ValueKey('vid_${data.artikul}')),
                     ),
                   )
@@ -190,7 +201,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         ),
         Expanded(
           child: _isWeb
-              ? buildWebIframe(_getIframeUrl(url, false),
+              ? buildWebIframe(_getIframeUrl(url, false), false,
                   key: ValueKey('pdf_${data.artikul}'))
               : _isLoadingPdf
                   ? const Center(
