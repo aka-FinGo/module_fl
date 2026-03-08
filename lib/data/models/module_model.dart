@@ -3,11 +3,9 @@ class FurnituraItem {
   final String ulchov;
   final String soni;
 
-  FurnituraItem({
-    required this.nomi,
-    required this.ulchov,
-    required this.soni,
-  });
+  FurnituraItem({required this.nomi, required this.ulchov, required this.soni});
+
+  Map<String, dynamic> toJson() => {'nomi': nomi, 'ulchov': ulchov, 'soni': soni};
 
   factory FurnituraItem.fromJson(Map<String, dynamic> json) {
     return FurnituraItem(
@@ -35,16 +33,24 @@ class ModuleModel {
     required this.error,
   });
 
+  Map<String, dynamic> toJson() {
+    final Map<String, dynamic> fursJson = {};
+    furnituralar.forEach((key, value) {
+      fursJson[key] = value.map((v) => v.toJson()).toList();
+    });
+    return {
+      'artikul': artikul,
+      'nomi': nomi,
+      'pdfUrl': pdfUrl,
+      'videoUrl': videoUrl,
+      'furnituralar': fursJson,
+      'error': error,
+    };
+  }
+
   factory ModuleModel.fromJson(Map<String, dynamic> json) {
-    if (json.containsKey('error') && json['error'] != null) {
-      return ModuleModel(
-        artikul: '',
-        nomi: '',
-        pdfUrl: '',
-        videoUrl: '',
-        furnituralar: {},
-        error: json['error'].toString(),
-      );
+    if (json.containsKey('error') && json['error'] != null && json['error'] != "") {
+      return ModuleModel(artikul: '', nomi: '', pdfUrl: '', videoUrl: '', furnituralar: {}, error: json['error'].toString());
     }
 
     Map<String, List<FurnituraItem>> parsedFurnituralar = {};
