@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:internet_file/internet_file.dart';
 import '../../../data/repositories/api_repository.dart';
@@ -19,25 +20,21 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   PdfController? _pdfController;
   bool _isLoadingPdf = false;
   bool _hasPdfError = false;
+  final bool _isWeb =
+      const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
   void _initYoutube(String url) {
-    if (_ytController != null) return;
+    if (_ytController != null || _isWeb) return;
 
-    String videoId = '';
-    if (url.contains('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1].split('?')[0];
-    } else if (url.contains('youtube.com/watch')) {
-      videoId = Uri.parse(url).queryParameters['v'] ?? '';
-    }
-
-    if (videoId.isNotEmpty) {
+    final videoId = YoutubePlayer.convertUrlToId(url);
+    if (videoId != null) {
       _ytController = YoutubePlayerController(
         initialVideoId: videoId,
-        params: const YoutubePlayerParams(
-          showControls: true,
-          showFullscreenButton: true,
-          loop: false,
+        flags: const YoutubePlayerFlags(
+          autoPlay: false,
+          mute: false,
           enableCaption: false,
+          disableDragSeek: false,
         ),
       );
     }
@@ -46,7 +43,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   void _initPdf(String url) async {
     if (_pdfController != null || _isLoadingPdf || _hasPdfError) return;
 
-    // Future.microtask orqali build cycle dan keyin state o'zgarishini ta'minlaymiz
     Future.microtask(() => setState(() => _isLoadingPdf = true));
 
     final match = RegExp(r'[-\w]{25,}').firstMatch(url);
@@ -61,26 +57,35 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         );
         if (mounted) setState(() => _isLoadingPdf = false);
       } catch (e) {
-        if (mounted) {
+        if (mounted)
           setState(() {
             _hasPdfError = true;
             _isLoadingPdf = false;
           });
-        }
       }
     } else {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _hasPdfError = true;
           _isLoadingPdf = false;
         });
+    }
+  }
+
+  Future<void> _launchURL(String url) async {
+    final Uri uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sikani ochib bo\'lmadi')),
+        );
       }
     }
   }
 
   @override
   void dispose() {
-    _ytController?.close();
+    _ytController?.dispose();
     _pdfController?.dispose();
     super.dispose();
   }
@@ -112,18 +117,41 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             ),
           ),
           Expanded(
-            child: _ytController != null
-                ? Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: YoutubePlayerIFrame(
-                        controller: _ytController,
-                        aspectRatio: 16 / 9,
-                      ),
+            child: _isWeb
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.ondemand_video,
+                            size: 80, color: AppColors.danger),
+                        const SizedBox(height: 16),
+                        const Text('Video brauzerda ochiladi',
+                            style: TextStyle(fontSize: 16)),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.accent,
+                              foregroundColor: Colors.white),
+                          onPressed: () => _launchURL(url),
+                          icon: const Icon(Icons.open_in_new),
+                          label: const Text('Videoni ko\'rish'),
+                        ),
+                      ],
                     ),
                   )
-                : const Center(child: Text('Noto\'g\'ri video URL')),
+                : _ytController != null
+                    ? Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: YoutubePlayer(
+                            controller: _ytController!,
+                            showVideoProgressIndicator: true,
+                            progressIndicatorColor: AppColors.accent,
+                          ),
+                        ),
+                      )
+                    : const Center(child: Text('Noto\'g\'ri video URL')),
           ),
         ],
       );
@@ -152,8 +180,27 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               ? const Center(
                   child: CircularProgressIndicator(color: AppColors.accent))
               : _hasPdfError || _pdfController == null
-                  ? const Center(
-                      child: Text('Chizmani yuklashda xatolik yuz berdi.'))
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline,
+                              size: 48, color: AppColors.textGray),
+                          const SizedBox(height: 16),
+                          const Text(
+                              'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white),
+                            onPressed: () => _launchURL(url),
+                            icon: const Icon(Icons.open_in_new),
+                            label: const Text('Brauzerda ochish'),
+                          ),
+                        ],
+                      ),
+                    )
                   : PdfView(
                       controller: _pdfController!,
                       scrollDirection: Axis.vertical,
