@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pdfx/pdfx.dart';
-import 'package:internet_file/internet_file.dart';
+import 'package:http/http.dart' as http;
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
+import 'web_iframe_stub.dart' if (dart.library.html) 'web_iframe.dart';
 
 class MediaViewPage extends ConsumerStatefulWidget {
   final String type;
@@ -41,7 +42,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   void _initPdf(String url) async {
-    if (_pdfController != null || _isLoadingPdf || _hasPdfError) return;
+    if (_pdfController != null || _isLoadingPdf || _hasPdfError || _isWeb)
+      return;
 
     Future.microtask(() => setState(() => _isLoadingPdf = true));
 
@@ -52,10 +54,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           'https://drive.googleusercontent.com/download?id=$fileId&export=download';
 
       try {
-        _pdfController = PdfController(
-          document: PdfDocument.openData(InternetFile.get(directUrl)),
-        );
-        if (mounted) setState(() => _isLoadingPdf = false);
+        final response = await http.get(Uri.parse(directUrl));
+        if (response.statusCode == 200) {
+          _pdfController = PdfController(
+            document: PdfDocument.openData(response.bodyBytes),
+          );
+          if (mounted) setState(() => _isLoadingPdf = false);
+        } else {
+          throw Exception('PFFFailed');
+        }
       } catch (e) {
         if (mounted)
           setState(() {
@@ -81,6 +88,25 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         );
       }
     }
+  }
+
+  String _getIframeUrl(String originalUrl, bool isVideo) {
+    if (isVideo) {
+      String vidId = "";
+      if (originalUrl.contains("youtu.be/")) {
+        vidId = originalUrl.split("youtu.be/")[1].split("?")[0];
+      } else if (originalUrl.contains("youtube.com/watch")) {
+        vidId = Uri.parse(originalUrl).queryParameters['v'] ?? "";
+      }
+      return 'https://www.youtube.com/embed/$vidId?modestbranding=1&rel=0&controls=1';
+    }
+
+    final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
+    if (match != null) {
+      final fileId = match.group(0);
+      return 'https://docs.google.com/viewer?url=https://drive.google.com/uc?export=download&id=$fileId&embedded=true';
+    }
+    return originalUrl;
   }
 
   @override
@@ -118,25 +144,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           ),
           Expanded(
             child: _isWeb
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.ondemand_video,
-                            size: 80, color: AppColors.danger),
-                        const SizedBox(height: 16),
-                        const Text('Video brauzerda ochiladi',
-                            style: TextStyle(fontSize: 16)),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.accent,
-                              foregroundColor: Colors.white),
-                          onPressed: () => _launchURL(url),
-                          icon: const Icon(Icons.open_in_new),
-                          label: const Text('Videoni ko\'rish'),
-                        ),
-                      ],
+                ? Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: buildWebIframe(_getIframeUrl(url, true),
+                          key: ValueKey('vid_${data.artikul}')),
                     ),
                   )
                 : _ytController != null
@@ -176,36 +189,39 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           ),
         ),
         Expanded(
-          child: _isLoadingPdf
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.accent))
-              : _hasPdfError || _pdfController == null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.error_outline,
-                              size: 48, color: AppColors.textGray),
-                          const SizedBox(height: 16),
-                          const Text(
-                              'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
-                          const SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white),
-                            onPressed: () => _launchURL(url),
-                            icon: const Icon(Icons.open_in_new),
-                            label: const Text('Brauzerda ochish'),
+          child: _isWeb
+              ? buildWebIframe(_getIframeUrl(url, false),
+                  key: ValueKey('pdf_${data.artikul}'))
+              : _isLoadingPdf
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.accent))
+                  : _hasPdfError || _pdfController == null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  size: 48, color: AppColors.textGray),
+                              const SizedBox(height: 16),
+                              const Text(
+                                  'Chizmani ilova ichida yuklashda xatolik yuz berdi.'),
+                              const SizedBox(height: 16),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white),
+                                onPressed: () => _launchURL(url),
+                                icon: const Icon(Icons.open_in_new),
+                                label: const Text('Brauzerda ochish'),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    )
-                  : PdfView(
-                      controller: _pdfController!,
-                      scrollDirection: Axis.vertical,
-                      pageSnapping: false,
-                    ),
+                        )
+                      : PdfView(
+                          controller: _pdfController!,
+                          scrollDirection: Axis.vertical,
+                          pageSnapping: false,
+                        ),
         ),
       ],
     );
