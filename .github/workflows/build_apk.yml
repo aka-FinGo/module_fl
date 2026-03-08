@@ -2,6 +2,17 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'APK turi'
+        required: true
+        default: 'split'
+        type: choice
+        options:
+          - 'split'
+          - 'universal'
+          - 'arm64'
+          - 'armv7'
 
 jobs:
   build:
@@ -24,10 +35,19 @@ jobs:
         run: flutter pub get
         
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          if [ "${{ github.event.inputs.build_type }}" == "universal" ]; then
+            flutter build apk --release
+          elif [ "${{ github.event.inputs.build_type }}" == "arm64" ]; then
+            flutter build apk --release --target-platform android-arm64
+          elif [ "${{ github.event.inputs.build_type }}" == "armv7" ]; then
+            flutter build apk --release --target-platform android-arm
+          else
+            flutter build apk --release --split-per-abi
+          fi
         
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ${{ github.event.inputs.build_type }}-apk
+          path: build/app/outputs/flutter-apk/*.apk
