@@ -24,12 +24,12 @@ jobs:
         run: flutter pub get
 
       - name: Build Web (PWA)
-        # base-href repozitoriya nomi bilan 100% mos bo'lishi shart
-        run: flutter build web --release --base-href /module_fl/
+        # --no-wasm-dry-run bayrog'i WASM xatosini bartaraf etadi
+        run: flutter build web --release --base-href /module_fl/ --no-wasm-dry-run
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
-          publish_branch: gh-pages # Fayllarni aynan shu branchga tashlaydi
+          publish_branch: gh-pages
