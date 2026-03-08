@@ -1,0 +1,58 @@
+name: Build Android APK (Capacitor)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodni olish
+        uses: actions/checkout@v4
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: www papkasini tayyorlash
+        run: |
+          mkdir -p www
+          cp index.html style.css app.js sw.js manifest.json www/
+          cp icon-192.png icon-512.png www/ 2>/dev/null || true
+
+      - name: Capacitor ornatish
+        run: |
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: capacitor.config.json yaratish
+        run: |
+          printf '{"appId":"uz.aristokrat.yigish","appName":"Aristokrat Yigish","webDir":"www","android":{"allowMixedContent":true}}' > capacitor.config.json
+
+      - name: Android platformasi
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Android sozlamalar (Kotlin fix + FLAG_SECURE + CAMERA)
+        run: python3 fix_android.py
+
+      - name: APK Build
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: APK yuklash
+        uses: actions/upload-artifact@v4
+        with:
+          name: aristokrat-yigish-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
