@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,17 +50,21 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
       final String code = barcodes.first.rawValue!;
 
-      // Play beep sound
-      try {
-        await _player.play(UrlSource(
-            'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'));
-      } catch (e) {
-        // Ignore playback errors
-      }
-
       setState(() {
         _isProcessing = true;
       });
+
+      // Kamerani darhol to'xtatamiz — freeze oldini olish uchun
+      await controller.stop();
+
+      // Beep ovozi (xato bo'lsa davom etamiz)
+      try {
+        await _player.play(UrlSource(
+            'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'))
+            .timeout(const Duration(seconds: 2));
+      } catch (e) {
+        // Ignore playback errors
+      }
 
       // Riverpod holatlari — Scan boshlandi
       ref.read(scannedBarcodeProvider.notifier).state = code;
