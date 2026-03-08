@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/api_repository.dart';
+import '../../shell/presentation/shell_page.dart';
 
 class ScannerPage extends ConsumerStatefulWidget {
   const ScannerPage({super.key});
@@ -12,10 +13,8 @@ class ScannerPage extends ConsumerStatefulWidget {
 }
 
 class _ScannerPageState extends ConsumerState<ScannerPage> {
-  // Web uchun controller sozlamalari biroz yumshatildi
   late MobileScannerController controller;
   bool isDetected = false;
-  String? errorMessage;
 
   @override
   void initState() {
@@ -23,7 +22,6 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
-      torchEnabled: false,
       formats: const [
         BarcodeFormat.qrCode,
         BarcodeFormat.code128,
@@ -45,17 +43,26 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-      setState(() { isDetected = true; });
-      
       final String code = barcodes.first.rawValue!;
-      // Webda kamerani to'xtatish ba'zida brauzerni qotirishi mumkin, 
-      // shuning uchun avval navigatsiya qilamiz
+      
+      setState(() {
+        isDetected = true;
+      });
+
+      // 1. Kamerani darhol muzlatish (Qotib qolmaslik uchun)
+      controller.stop();
+      
+      // 2. Navigatsiya va Sarlavha holatlarini yangilash
+      ref.read(bottomNavIndexProvider.notifier).state = 1;
+      ref.read(appBarTitleProvider.notifier).state = 'Artikul: $code';
       ref.read(scannedBarcodeProvider.notifier).state = code;
       ref.read(isLoadingProvider.notifier).state = true;
       
+      // 3. API so'rovini fonda boshlash
       _fetchData(code);
       
-      if (context.mounted) {
+      // 4. Skaner oynasidan chiqish
+      if (mounted) {
         Navigator.pop(context);
       }
     }
@@ -66,6 +73,13 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     final data = await apiRepo.fetchModuleData(barcode);
     ref.read(moduleDataProvider.notifier).state = data;
     ref.read(isLoadingProvider.notifier).state = false;
+    
+    // Agar xato bo'lsa, sarlavhani xatoga moslash
+    if (data.error.isNotEmpty) {
+      ref.read(appBarTitleProvider.notifier).state = 'Xatolik yuz berdi';
+    } else {
+      ref.read(appBarTitleProvider.notifier).state = 'Modul: ${data.artikul}';
+    }
   }
 
   @override
@@ -73,105 +87,44 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Skaner', style: TextStyle(color: Colors.white)),
+        title: const Text('Skanerlash', style: TextStyle(color: Colors.white)),
         backgroundColor: AppColors.primary,
         iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: controller.torchState,
-              builder: (context, state, child) {
-                return Icon(
-                  state == TorchState.on ? Icons.flash_on : Icons.flash_off,
-                  color: state == TorchState.on ? AppColors.warning : Colors.white,
-                );
-              },
-            ),
-            onPressed: () => controller.toggleTorch(),
-          ),
-        ],
       ),
       body: Stack(
         children: [
-          // SCANNER WIDGET
           MobileScanner(
             controller: controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.videocam_off, color: Colors.white, size: 60),
-                      const SizedBox(height: 16),
-                      Text(
-                        error.errorCode == MobileScannerErrorCode.permissionDenied
-                            ? 'Kameraga ruxsat berilmagan! Brauzer sozlamalarini tekshiring.'
-                            : 'Kamera xatosi: ${error.errorDetails?.message ?? "Noma'lum"}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Orqaga'),
-                      )
-                    ],
-                  ),
-                ),
-              );
-            },
           ),
-          // SCAN WINDOW (Kvadrat oyna)
+          // Skaner ramkasi
           Center(
             child: Container(
-              width: 260,
-              height: 260,
+              width: 250,
+              height: 250,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.accent, width: 3),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                children: [
-                  // Burchaklardagi dekorativ chiziqlar
-                  Positioned(top: 10, left: 10, child: _corner(0)),
-                  Positioned(top: 10, right: 10, child: _corner(1)),
-                  Positioned(bottom: 10, left: 10, child: _corner(2)),
-                  Positioned(bottom: 10, right: 10, child: _corner(3)),
-                ],
+                borderRadius: BorderRadius.circular(15),
               ),
             ),
           ),
-          // INFO TEXT
-          const Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                'Barkod yoki QR kodni kvadratga joylang',
-                style: TextStyle(color: Colors.white70, letterSpacing: 1),
+          // Yuklanish holati overlay
+          if (isDetected)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: AppColors.accent),
+                    SizedBox(height: 16),
+                    Text('Ma\'lumotlar yuklanmoqda...', 
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _corner(int index) {
-    return Container(
-      width: 20,
-      height: 20,
-      decoration: BoxDecoration(
-        border: Border(
-          top: index < 2 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
-          bottom: index >= 2 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
-          left: index % 2 == 0 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
-          right: index % 2 != 0 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
-        ),
       ),
     );
   }
