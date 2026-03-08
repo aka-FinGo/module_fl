@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/module_model.dart';
 
-// API Manzili (O'zingizning Google Sheets Deploy URL manzilingizni shu yerga qo'ying)
+// API Manzili (Google Sheets AppScript Deploy URL)
 const String apiUrl =
     'https://script.google.com/macros/s/AKfycbxyWSaRdn-4NZkkwJiAb2Q-uezsE8U_iFhjdSfsd4vZRHodaQ-aLhMNZe9ZwqjdVMjQ/exec';
 
@@ -13,60 +13,69 @@ final moduleDataProvider = StateProvider<ModuleModel?>((ref) => null);
 final isLoadingProvider = StateProvider<bool>((ref) => false);
 
 final apiRepositoryProvider = Provider<ApiRepository>((ref) {
-  return ApiRepository(Dio());
+  return ApiRepository();
 });
 
 class ApiRepository {
-  final Dio _dio;
-
-  ApiRepository(this._dio) {
-    _dio.options.connectTimeout = const Duration(seconds: 15);
-    _dio.options.receiveTimeout = const Duration(seconds: 15);
-  }
-
   Future<ModuleModel> fetchModuleData(String barcode) async {
     try {
-      final response = await _dio.get(
-        apiUrl,
+      final uri = Uri.parse(apiUrl).replace(
         queryParameters: {'barcode': barcode},
       );
 
-      if (response.statusCode == 200) {
-        // String kelsa, uni JSON (Map) ga parse qilish
-        final dynamic responseData = response.data is String
-            ? jsonDecode(response.data as String)
-            : response.data;
+      // http package Google AppScript redirect (302) ni avtomatik kuzatadi
+      final response = await http.get(uri).timeout(const Duration(seconds: 20));
 
-        return ModuleModel.fromJson(responseData as Map<String, dynamic>);
-      } else {
-        return ModuleModel(
+      if (response.statusCode == 200) {
+        final body = response.body.trim();
+
+        // JSON bo'lmagan HTML javob kelishi mumkin (AppScript xatosi)
+        if (!body.startsWith('{') && !body.startsWith('[')) {
+          return ModuleModel(
             artikul: '',
             nomi: '',
             pdfUrl: '',
             videoUrl: '',
             furnituralar: {},
-            error: 'Server xatosi: ${response.statusCode}');
-      }
-    } on DioException catch (e) {
-      String errorMessage = 'Tarmoq xatosi yoki CORS muammosi!';
-      if (e.type == DioExceptionType.connectionTimeout) {
-        errorMessage = 'Ulanish vaqti tugadi. Internetni tekshiring.';
-      }
-      return ModuleModel(
+            error:
+                'Serverdan noto\'g\'ri javob keldi. AppScript "Deploy" sozlamalarini tekshiring.',
+          );
+        }
+
+        final Map<String, dynamic> jsonData = jsonDecode(body);
+        return ModuleModel.fromJson(jsonData);
+      } else {
+        return ModuleModel(
           artikul: '',
           nomi: '',
           pdfUrl: '',
           videoUrl: '',
           furnituralar: {},
-          error: errorMessage);
+          error: 'Server xatosi: ${response.statusCode}',
+        );
+      }
+    } on FormatException {
+      return ModuleModel(
+        artikul: '',
+        nomi: '',
+        pdfUrl: '',
+        videoUrl: '',
+        furnituralar: {},
+        error: 'JSON parse xatosi. AppScript javobini tekshiring.',
+      );
     } catch (e) {
+      String errorMessage = 'Tarmoq xatosi! Internetni tekshiring.';
+      if (e.toString().contains('TimeoutException')) {
+        errorMessage = 'Ulanish vaqti tugadi (20s). Internetni tekshiring.';
+      }
       return ModuleModel(
-          artikul: '',
-          nomi: '',
-          pdfUrl: '',
-          videoUrl: '',
-          furnituralar: {},
-          error: 'Noma\'lum xato: $e');
+        artikul: '',
+        nomi: '',
+        pdfUrl: '',
+        videoUrl: '',
+        furnituralar: {},
+        error: errorMessage,
+      );
     }
   }
 }

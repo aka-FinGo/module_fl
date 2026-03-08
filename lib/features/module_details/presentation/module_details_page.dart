@@ -15,16 +15,15 @@ class ModuleDetailsPage extends ConsumerWidget {
     final moduleData = ref.watch(moduleDataProvider);
     final isLoading = ref.watch(isLoadingProvider);
     final expandedCategory = ref.watch(expandedCategoryProvider);
-    final checkedItems = ref.watch(checklistProvider);
-
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.accent));
     }
 
     if (moduleData == null) {
       return const Center(
-        child: Text('Hali modul skaner qilinmadi', 
-        style: TextStyle(color: AppColors.textGray, fontSize: 16)),
+        child: Text('Hali modul skaner qilinmadi',
+            style: TextStyle(color: AppColors.textGray, fontSize: 16)),
       );
     }
 
@@ -32,9 +31,10 @@ class ModuleDetailsPage extends ConsumerWidget {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Text(moduleData.error, 
-          style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center),
+          child: Text(moduleData.error,
+              style: const TextStyle(
+                  color: AppColors.danger, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center),
         ),
       );
     }
@@ -58,7 +58,7 @@ class ModuleDetailsPage extends ConsumerWidget {
             // ACCORDION HEADER
             GestureDetector(
               onTap: () {
-                ref.read(expandedCategoryProvider.notifier).state = 
+                ref.read(expandedCategoryProvider.notifier).state =
                     isExpanded ? null : category;
               },
               child: Container(
@@ -71,10 +71,13 @@ class ModuleDetailsPage extends ConsumerWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(category, 
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text(category,
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                     Icon(
-                      isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                      isExpanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
                       color: Colors.white,
                     ),
                   ],
@@ -87,10 +90,12 @@ class ModuleDetailsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
+                  borderRadius:
+                      BorderRadius.vertical(bottom: Radius.circular(8)),
                 ),
                 child: Column(
-                  children: _buildSortedItems(items, category, moduleData.artikul, ref),
+                  children: _buildSortedItems(
+                      items, category, moduleData.artikul, ref),
                 ),
               ),
           ],
@@ -99,7 +104,8 @@ class ModuleDetailsPage extends ConsumerWidget {
     );
   }
 
-  List<Widget> _buildSortedItems(List items, String category, String artikul, WidgetRef ref) {
+  List<Widget> _buildSortedItems(
+      List items, String category, String artikul, WidgetRef ref) {
     // Saralash: Belgilanganlar eng pastga tushadi
     final sortedItems = List.from(items);
     sortedItems.sort((a, b) {
@@ -119,7 +125,9 @@ class ModuleDetailsPage extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isChecked ? AppColors.accent.withOpacity(0.1) : Colors.transparent,
+            color: isChecked
+                ? AppColors.accent.withOpacity(0.1)
+                : Colors.transparent,
             border: const Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
           ),
           child: Row(
@@ -129,23 +137,26 @@ class ModuleDetailsPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(item.nomi,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        decoration: isChecked ? TextDecoration.lineThrough : null,
-                        color: isChecked ? AppColors.accent : AppColors.textDark,
-                      )),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          decoration:
+                              isChecked ? TextDecoration.lineThrough : null,
+                          color:
+                              isChecked ? AppColors.accent : AppColors.textDark,
+                        )),
                     Text(item.ulchov,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textGray)),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textGray)),
                   ],
                 ),
               ),
               Text(item.soni,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isChecked ? AppColors.accent : AppColors.danger,
-                )),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isChecked ? AppColors.accent : AppColors.danger,
+                  )),
             ],
           ),
         ),

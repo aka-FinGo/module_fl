@@ -1,0 +1,154 @@
+:root {
+    --primary: #2c3e50;
+    --accent: #27ae60;
+    --bg: #eef2f5;
+    --text: #333;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+body { 
+    font-family: sans-serif; background: var(--bg); color: var(--text);
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+
+.app-bar {
+    background: var(--primary); color: white;
+    padding-top: env(safe-area-inset-top, 20px);
+    height: calc(60px + env(safe-area-inset-top, 0px));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 100; flex-shrink: 0;
+}
+
+#main-container { flex: 1; position: relative; overflow: hidden; width: 100%; max-width: 600px; margin: 0 auto; }
+
+/* RO'YXAT TEPASEQRA KO'TARILISHI UCHUN PADDING-BOTTOM OSHIRILDI */
+.page { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; 
+    padding: 15px; overflow-y: auto; 
+    padding-bottom: calc(110px + env(safe-area-inset-bottom, 20px)); 
+}
+.page.active { display: block; }
+.scrollable { height: 100%; }
+
+/* BOTTOM NAV VA FAB (MARKAZIY TUGMA) ARXITEKTURASI */
+.bottom-nav {
+    background: white; border-top: 1px solid #ddd;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 5px; padding-bottom: env(safe-area-inset-bottom, 10px);
+    height: calc(70px + env(safe-area-inset-bottom, 0px));
+    position: fixed; bottom: 0; width: 100%; z-index: 1000; flex-shrink: 0;
+}
+.nav-item {
+    border: none; background: none; flex: 1; display: flex; flex-direction: column; 
+    align-items: center; justify-content: center; cursor: pointer; color: #7f8c8d; height: 100%;
+}
+.nav-item.active { color: var(--primary); font-weight: bold; }
+.nav-item.active .icon { color: var(--primary); }
+.nav-item.disabled { opacity: 0.3; pointer-events: none; }
+.nav-item .icon { font-size: 22px; margin-bottom: 2px; }
+.nav-item .label { font-size: 11px; }
+
+.fab-wrapper { position: relative; width: 70px; height: 100%; display: flex; justify-content: center; }
+.fab-button {
+    position: absolute; top: -25px; width: 65px; height: 65px;
+    background: var(--accent); border-radius: 50%; border: 4px solid var(--bg);
+    display: flex; justify-content: center; align-items: center;
+    box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4); cursor: pointer;
+    color: white; font-size: 26px; z-index: 1001; transition: transform 0.2s;
+}
+.fab-button:active { transform: scale(0.95); }
+.hero-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+
+/* TARIX RO'YXATI VA RASMI */
+.history-item { 
+    background: white; padding: 10px 15px; border-radius: 8px; margin-top: 10px; 
+    border-left: 4px solid var(--accent); display: flex; align-items: center; gap: 15px; cursor: pointer; 
+}
+.history-img { width: 50px; height: 50px; border-radius: 6px; object-fit: cover; background: #eee; flex-shrink: 0; }
+
+.btn { padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+.btn-primary { background: #2980b9; color: white; }
+.btn-danger { background: #e74c3c; color: white; }
+.hidden { display: none !important; }
+.mt-10 { margin-top: 10px; }
+
+.fur-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+.fur-item strong { color: #e74c3c; font-size: 1.1em; }
+
+.skeleton { background: #e0e0e0; border-radius: 4px; margin-bottom: 10px; animation: pulse 1.5s infinite; }
+.skeleton-text { height: 20px; width: 100%; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+#fullscreen-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9999; display: flex; flex-direction: column; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: calc(10px + env(safe-area-inset-top, 0px)) 15px 10px 15px; background: #2c3e50; color: white; }
+.modal-header h3 { font-size: 18px; margin: 0; }
+#modal-body { flex-grow: 1; position: relative; width: 100%; height: 100%; background: #333; }
+#iframe-container, #iframe-container iframe { width: 100%; height: 100%; border: none; }
+.iframe-wrapper { position: relative; width: 100%; height: 400px; border-radius: 8px; overflow: hidden; background: #333; -webkit-touch-callout: none; }
+.secure-iframe { width: 100%; height: 100%; border: none; }
+
+/* TO'SIQ (SHIELD): Youtube va PDF himoyasi uchun kengligi 100% qilindi */
+#anti-leak-shield, .anti-leak-shield { position: absolute; top: 0; right: 0; width: 100%; height: 60px; z-index: 100; background: transparent; }
+/* ACCORDION VA CHECKLIST UI */
+.accordion-header {
+    background: #2c3e50;
+    color: white;
+    padding: 14px 15px;
+    margin-top: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.accordion-body {
+    display: none;
+    background: white;
+    padding: 5px 0;
+    border-radius: 0 0 8px 8px;
+}
+.accordion-body.open {
+    display: block;
+}
+.fur-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+.fur-item:last-child {
+    border-bottom: none;
+}
+.fur-item .fur-details {
+    display: flex;
+    flex-direction: column;
+}
+.fur-item .fur-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333;
+}
+.fur-item .fur-size {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-top: 2px;
+}
+.fur-item strong {
+    color: #e74c3c;
+    font-size: 16px;
+}
+/* Checklist bosilgandagi holat */
+.fur-item.checked {
+    background: #e8f8f5;
+    opacity: 0.6;
+}
+.fur-item.checked .fur-name,
+.fur-item.checked .fur-size,
+.fur-item.checked strong {
+    text-decoration: line-through;
+    color: #27ae60;
+}

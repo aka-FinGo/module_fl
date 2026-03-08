@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.5.1
   mobile_scanner: ^5.0.0
-  dio: ^5.4.1
+  http: ^1.2.1
   shared_preferences: ^2.2.2
   url_launcher: ^6.3.0 # BU MUHIM: Xatolikni yo'qotadi
   youtube_player_flutter: ^8.1.2
