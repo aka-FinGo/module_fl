@@ -25,7 +25,7 @@ jobs:
 
       - name: Build Web (PWA)
         # YOUR_REPO_NAME o'rniga o'z repozitoriyangiz nomini yozing
-        run: flutter build web --release --pwa-strategy=offline-first --base-href /module_fl/
+        run: flutter build web --release --base-href /module_fl/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
