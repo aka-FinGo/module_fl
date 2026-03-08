@@ -36,7 +36,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   @override
   void initState() {
     super.initState();
-    _checkConnectivity();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkConnectivity();
+    });
     _connectivitySubscription =
         Connectivity().onConnectivityChanged.listen((results) {
       if (mounted) {
@@ -76,14 +78,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     // Keshdan tekshirish
     final cached = await OfflineCacheManager.getCachedPdf(data.pdfUrl);
-    if (cached != null) {
-      if (mounted) {
-        setState(() {
-          _cachedPdf = cached;
-          _pdfController =
-              PdfController(document: PdfDocument.openFile(cached.path));
-        });
-      }
+    if (cached != null && mounted) {
+      final newController =
+          PdfController(document: PdfDocument.openFile(cached.path));
+      setState(() {
+        _cachedPdf = cached;
+        _pdfController?.dispose(); // Eski controllerni dispose qil
+        _pdfController = newController;
+      });
     }
 
     // Agar online bo'lsak, fon rejimida keshga yuklab qo'yamiz (agar hali yo'q bo'lsa)
