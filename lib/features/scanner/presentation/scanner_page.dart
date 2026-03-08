@@ -12,13 +12,14 @@ class ScannerPage extends ConsumerStatefulWidget {
 }
 
 class _ScannerPageState extends ConsumerState<ScannerPage> {
+  // Web uchun controller sozlamalari biroz yumshatildi
   late MobileScannerController controller;
   bool isDetected = false;
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    // Chiziqli barkodlar va avtofokus formati
     controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
@@ -40,25 +41,20 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
   }
 
   void _onDetect(BarcodeCapture capture) async {
-    if (isDetected) return; // Ikki marta o'qib yuborishdan himoya
+    if (isDetected) return;
     
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-      setState(() {
-        isDetected = true;
-      });
+      setState(() { isDetected = true; });
       
       final String code = barcodes.first.rawValue!;
-      controller.stop(); // Kamerani to'xtatish
-      
-      // Riverpod orqali global holatni yangilash
+      // Webda kamerani to'xtatish ba'zida brauzerni qotirishi mumkin, 
+      // shuning uchun avval navigatsiya qilamiz
       ref.read(scannedBarcodeProvider.notifier).state = code;
       ref.read(isLoadingProvider.notifier).state = true;
       
-      // API ga so'rov yuborish mantiqi (Asinxron)
       _fetchData(code);
       
-      // Skaner sahifasidan orqaga (Asosiy Qobiqqa) qaytish
       if (context.mounted) {
         Navigator.pop(context);
       }
@@ -75,19 +71,20 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Kamerani yo\'naltiring', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Skaner', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.primary,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
             icon: ValueListenableBuilder(
               valueListenable: controller.torchState,
               builder: (context, state, child) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: AppColors.warning);
-                }
+                return Icon(
+                  state == TorchState.on ? Icons.flash_on : Icons.flash_off,
+                  color: state == TorchState.on ? AppColors.warning : Colors.white,
+                );
               },
             ),
             onPressed: () => controller.toggleTorch(),
@@ -96,33 +93,85 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
       ),
       body: Stack(
         children: [
+          // SCANNER WIDGET
           MobileScanner(
             controller: controller,
             onDetect: _onDetect,
+            errorBuilder: (context, error, child) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.videocam_off, color: Colors.white, size: 60),
+                      const SizedBox(height: 16),
+                      Text(
+                        error.errorCode == MobileScannerErrorCode.permissionDenied
+                            ? 'Kameraga ruxsat berilmagan! Brauzer sozlamalarini tekshiring.'
+                            : 'Kamera xatosi: ${error.errorDetails?.message ?? "Noma'lum"}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Orqaga'),
+                      )
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
-          // Skaner oynasi (Kvadrat shakl)
+          // SCAN WINDOW (Kvadrat oyna)
           Center(
             child: Container(
-              width: 250,
-              height: 250,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.accent, width: 3),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Stack(
+                children: [
+                  // Burchaklardagi dekorativ chiziqlar
+                  Positioned(top: 10, left: 10, child: _corner(0)),
+                  Positioned(top: 10, right: 10, child: _corner(1)),
+                  Positioned(bottom: 10, left: 10, child: _corner(2)),
+                  Positioned(bottom: 10, right: 10, child: _corner(3)),
+                ],
               ),
             ),
           ),
-          // Pastki ma'lumot matni
+          // INFO TEXT
           const Positioned(
-            bottom: 40,
+            bottom: 50,
             left: 0,
             right: 0,
-            child: Text(
-              'Barkod yoki QR kodni kvadrat ichiga oling',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 14, backgroundColor: Colors.black54),
+            child: Center(
+              child: Text(
+                'Barkod yoki QR kodni kvadratga joylang',
+                style: TextStyle(color: Colors.white70, letterSpacing: 1),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _corner(int index) {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        border: Border(
+          top: index < 2 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
+          bottom: index >= 2 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
+          left: index % 2 == 0 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
+          right: index % 2 != 0 ? BorderSide(color: AppColors.accent, width: 4) : BorderSide.none,
+        ),
       ),
     );
   }
