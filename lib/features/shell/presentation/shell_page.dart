@@ -50,7 +50,7 @@ class ShellPage extends ConsumerWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _navItem(ref, Icons.history, 'Tarix', 0, currentIndex, true),
+            _navItem(ref, Icons.history, 'Bosh sahifa', 0, currentIndex, true),
             _navItem(ref, Icons.architecture, 'Chizma', 1, currentIndex,
                 moduleData != null),
             const SizedBox(width: 40),
