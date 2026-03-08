@@ -24,7 +24,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web (PWA)
-        # YOUR_REPO_NAME o'rniga o'z repozitoriyangiz nomini yozing
+        # base-href repozitoriya nomi bilan 100% mos bo'lishi shart
         run: flutter build web --release --base-href /module_fl/
 
       - name: Deploy to GitHub Pages
@@ -32,3 +32,4 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./build/web
+          publish_branch: gh-pages # Fayllarni aynan shu branchga tashlaydi
