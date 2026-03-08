@@ -98,7 +98,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       } else if (originalUrl.contains("youtube.com/watch")) {
         vidId = Uri.parse(originalUrl).queryParameters['v'] ?? "";
       }
-      return 'https://www.youtube.com/embed/$vidId?modestbranding=1&rel=0&controls=1';
+      return 'https://www.youtube.com/embed/$vidId?modestbranding=1&rel=0&controls=1&fs=0&iv_load_policy=3';
     }
 
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);

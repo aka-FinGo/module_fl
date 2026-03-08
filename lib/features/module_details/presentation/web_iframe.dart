@@ -23,23 +23,25 @@ Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
         ..allowFullscreen = true;
 
       if (isVideo) {
-        // Top-left: Block video title and channel link (approx 70% width)
+        // Top-left: Block video title and channel link
+        // We leave the right side (Settings, CC) open
         final html.DivElement topLeftShield = html.DivElement()
           ..style.position = 'absolute'
           ..style.top = '0'
           ..style.left = '0'
-          ..style.height = '60px'
+          ..style.height = '65px'
           ..style.width = '70%'
           ..style.backgroundColor = 'transparent'
           ..style.zIndex = '999';
 
         // Bottom-left: Block Share and Watch Later buttons
+        // Adjusted to be just large enough for the buttons
         final html.DivElement bottomLeftShield = html.DivElement()
           ..style.position = 'absolute'
           ..style.bottom = '0'
           ..style.left = '0'
-          ..style.width = '120px'
-          ..style.height = '70px' // Increased height to cover share
+          ..style.width = '160px'
+          ..style.height = '75px'
           ..style.backgroundColor = 'transparent'
           ..style.zIndex = '999';
 
@@ -49,7 +51,7 @@ Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
           ..style.bottom = '0'
           ..style.right = '0'
           ..style.width = '100px'
-          ..style.height = '60px'
+          ..style.height = '50px'
           ..style.backgroundColor = 'transparent'
           ..style.zIndex = '999';
 
@@ -61,8 +63,8 @@ Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
           ..style.position = 'absolute'
           ..style.top = '0'
           ..style.right = '0'
-          ..style.width = '80px' // Slightly wider to be sure
-          ..style.height = '60px'
+          ..style.width = '80px'
+          ..style.height = '65px'
           ..style.backgroundColor = 'transparent'
           ..style.zIndex = '999';
 
