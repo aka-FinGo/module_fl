@@ -1,0 +1,37 @@
+{
+    "name": "Aristokrat Mebel ERP",
+    "short_name": "Aristokrat",
+    "start_url": "/module_fl/",
+    "display": "standalone",
+    "background_color": "#2C3E50",
+    "theme_color": "#2C3E50",
+    "description": "Aristokrat Mebel korxonasi uchun maxsus.",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false,
+    "icons": [
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/Icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "icons/Icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+      ]
+}
