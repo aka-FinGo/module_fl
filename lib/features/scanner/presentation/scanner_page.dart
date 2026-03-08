@@ -106,6 +106,23 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
             style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          ValueListenableBuilder(
+            valueListenable: controller,
+            builder: (context, state, child) {
+              final torchState = state.torchState;
+              return IconButton(
+                color: Colors.white,
+                icon: Icon(
+                  torchState == TorchState.on
+                      ? Icons.flash_on
+                      : Icons.flash_off,
+                ),
+                onPressed: () => controller.toggleTorch(),
+              );
+            },
+          ),
+        ],
       ),
       body: Stack(
         children: [
