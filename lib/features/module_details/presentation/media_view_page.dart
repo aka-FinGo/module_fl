@@ -71,7 +71,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Future<void> _initOfflinePdf() async {
-    final data = ref.read(moduleDataProvider).value;
+    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
     if (data == null || data.pdfUrl.isEmpty) return;
 
     // Keshdan tekshirish
@@ -94,7 +94,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   void _initYoutube() {
     if (_ytController != null || _isWeb) return;
-    final data = ref.read(moduleDataProvider).value;
+    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
     if (data == null || data.videoUrl.isEmpty) return;
 
     final videoId = YoutubePlayer.convertUrlToId(data.videoUrl);
@@ -167,54 +167,48 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return _buildFullScreenView();
     }
 
-    final dataAsync = ref.watch(moduleDataProvider);
-    return dataAsync.when(
-      data: (data) {
-        if (data == null) return const Center(child: Text('Ma\'lumot yo\'q'));
-        final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
-        if (url.isEmpty) return const Center(child: Text('Fayl kiritilmagan'));
+    final data = ref.watch(moduleDataProvider);
+    if (data == null) return const Center(child: Text('Ma\'lumot yo\'q'));
 
-        return Column(
-          children: [
-            const SizedBox(height: 10),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(data.artikul,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 18)),
-                  ),
-                  IconButton(
-                    onPressed: _toggleFullScreen,
-                    icon: const Icon(Icons.fullscreen),
-                    tooltip: 'To\'liq ekran',
-                  ),
-                  Icon(
-                    widget.type == 'video'
-                        ? Icons.video_library
-                        : Icons.picture_as_pdf,
-                    color: widget.type == 'video'
-                        ? AppColors.accent
-                        : AppColors.danger,
-                  ),
-                ],
+    final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
+    if (url.isEmpty) return const Center(child: Text('Fayl kiritilmagan'));
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(data.artikul,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
               ),
-            ),
-            Expanded(child: _buildMediaContent(url, data)),
-          ],
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, s) => Center(child: Text('Xatolik: $e')),
+              IconButton(
+                onPressed: _toggleFullScreen,
+                icon: const Icon(Icons.fullscreen),
+                tooltip: 'To\'liq ekran',
+              ),
+              Icon(
+                widget.type == 'video'
+                    ? Icons.video_library
+                    : Icons.picture_as_pdf,
+                color: widget.type == 'video'
+                    ? AppColors.accent
+                    : AppColors.danger,
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: _buildMediaContent(url, data)),
+      ],
     );
   }
 
   Widget _buildFullScreenView() {
-    final data = ref.read(moduleDataProvider).value;
+    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
     if (data == null) return const SizedBox();
     final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
 
