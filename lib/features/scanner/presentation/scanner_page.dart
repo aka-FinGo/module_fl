@@ -35,24 +35,30 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
   }
 
   void _handleCapture(BarcodeCapture capture) async {
-    if (_isProcessing) return; // Ma'lumot tahlil qilinayotgan bo'lsa, qabul qilmaydi
-    
+    if (_isProcessing)
+      return; // Ma'lumot tahlil qilinayotgan bo'lsa, qabul qilmaydi
+
     final List<Barcode> barcodes = capture.barcodes;
     if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
       final String code = barcodes.first.rawValue!;
-      
-      setState(() { _isProcessing = true; });
-      
-      // Riverpod holatlari
-      ref.read(bottomNavIndexProvider.notifier).state = 3; // Furnitura sahifasi
-      ref.read(appBarTitleProvider.notifier).state = 'Yuklanmoqda: $code';
+
+      setState(() {
+        _isProcessing = true;
+      });
+
+      // Riverpod holatlari — Scan boshlandi
       ref.read(scannedBarcodeProvider.notifier).state = code;
       ref.read(isLoadingProvider.notifier).state = true;
+      ref.read(appBarTitleProvider.notifier).state = 'Yuklanmoqda...';
 
-      // API va Tarix saqlash
-      _processScan(code);
+      // Avval API ni chaqiramiz, keyin sahifani yopamiz
+      await _processScan(code);
 
-      if (mounted) Navigator.pop(context);
+      // API tugagandan KEYIN Furnitura tabiga o'tamiz va sahifani yopamiz
+      if (mounted) {
+        ref.read(bottomNavIndexProvider.notifier).state = 3;
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -60,11 +66,12 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     try {
       final apiRepo = ref.read(apiRepositoryProvider);
       final data = await apiRepo.fetchModuleData(code);
-      
+
       ref.read(moduleDataProvider.notifier).state = data;
       ref.read(isLoadingProvider.notifier).state = false;
-      ref.read(appBarTitleProvider.notifier).state = 'Modul: ${data.artikul}';
-      
+      ref.read(appBarTitleProvider.notifier).state =
+          data.error.isNotEmpty ? 'Xato!' : 'Modul: ${data.artikul}';
+
       // Tarixga saqlash
       if (data.artikul.isNotEmpty) {
         ref.read(historyProvider.notifier).addEntry(data);
@@ -80,7 +87,8 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Barkodni o\'qing', style: TextStyle(color: Colors.white)),
+        title: const Text('Barkodni o\'qing',
+            style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -93,7 +101,8 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
           // Skaner ramkasi (Overlay)
           Center(
             child: Container(
-              width: 240, height: 240,
+              width: 240,
+              height: 240,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.accent, width: 2),
                 borderRadius: BorderRadius.circular(12),
@@ -101,7 +110,8 @@ class _ScannerPageState extends ConsumerState<ScannerPage> {
             ),
           ),
           if (_isProcessing)
-            const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+            const Center(
+                child: CircularProgressIndicator(color: AppColors.accent)),
         ],
       ),
     );
