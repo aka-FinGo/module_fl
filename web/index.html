@@ -19,21 +19,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://unpkg.com/@zxing/library@latest"></script>
-
-  <script>
-    // Service Worker keshini boshqarish va yangilash
-    var serviceWorkerVersion = null;
-  </script>
-  <script src="flutter_bootstrap.js" async></script>
 </head>
 <body>
-  <script>
-    window.addEventListener('load', function(ev) {
-      // Service Worker-ni ro'yxatdan o'tkazish (PWA o'rnatilishi uchun shart)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('flutter_service_worker.js?v=' + serviceWorkerVersion);
-      }
-    });
-  </script>
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
