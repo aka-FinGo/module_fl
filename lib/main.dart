@@ -1,18 +1,10 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:screen_protector/screen_protector.dart';
 import 'core/constants/app_colors.dart';
 import 'features/shell/presentation/shell_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (!kIsWeb && Platform.isAndroid) {
-    await ScreenProtector.preventScreenshotOn();
-  }
-
   runApp(const ProviderScope(child: AristokratApp()));
 }
 
@@ -33,7 +25,6 @@ class AristokratApp extends StatelessWidget {
           centerTitle: true,
           elevation: 0,
         ),
-        // BU YERDA XATO BOR EDI: BottomAppBarThemeData bo'lishi kerak
         bottomAppBarTheme: const BottomAppBarThemeData(
           color: AppColors.bottomNavBg,
           elevation: 10,
