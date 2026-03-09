@@ -226,9 +226,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         final body = response.body;
 
         // Yangi Drive format: uuid parametri
-        final uuidMatch = RegExp(r'uuid=([^&"\'>\s]+)').firstMatch(body);
+        final uuidMatch = RegExp(r'uuid=([^&>\s]+)').firstMatch(body);
         // Eski Drive format: confirm parametri
-        final confirmMatch = RegExp(r'confirm=([^&"\'>\s]+)').firstMatch(body);
+        final confirmMatch = RegExp(r'confirm=([^&>\s]+)').firstMatch(body);
         // Forma action URL
         final actionMatch = RegExp(r'action="([^"]+)"').firstMatch(body);
 
