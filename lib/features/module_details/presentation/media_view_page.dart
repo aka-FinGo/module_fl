@@ -414,7 +414,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           options: const DefaultBuilderOptions(),
           documentLoaderBuilder: (_) =>
               const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-          pageLoaderBuilder: (_, __) =>
+          pageLoaderBuilder: (_) =>
               const Center(child: CircularProgressIndicator(color: AppColors.accent)),
         ),
       );
