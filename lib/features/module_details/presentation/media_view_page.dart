@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,8 +7,6 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pdfx/pdfx.dart';
-import 'dart:io';
-import 'dart:async';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/offline_cache_manager.dart';
@@ -28,10 +27,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
   bool _isOnline = true;
+  bool _isLoading = true;
+  String? _errorMessage;
   File? _cachedPdf;
   PdfController? _pdfController;
-  late final StreamSubscription<List<ConnectivityResult>>
-      _connectivitySubscription;
+  late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   @override
   void initState() {
@@ -39,16 +39,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkConnectivity();
     });
+
     _connectivitySubscription =
         Connectivity().onConnectivityChanged.listen((results) {
-      if (mounted) {
-        final result = results.first;
-        setState(() {
-          _isOnline = result != ConnectivityResult.none;
-        });
-        if (widget.type == 'pdf' && _isOnline && _pdfController == null) {
-          _initOfflinePdf();
-        }
+      if (!mounted) return;
+      final isNowOnline = results.first != ConnectivityResult.none;
+      setState(() => _isOnline = isNowOnline);
+
+      // Internet qaytib kelsa va PDF controller yo'q bo'lsa — qayta init
+      if (widget.type == 'pdf' && isNowOnline && _pdfController == null && !_isWeb) {
+        _initOfflinePdf();
       }
     });
 
@@ -58,58 +58,137 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Future<void> _checkConnectivity() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    if (mounted) {
-      setState(() {
-        _isOnline = connectivityResult.first != ConnectivityResult.none;
-      });
-    }
+    try {
+      final result = await Connectivity().checkConnectivity();
+      if (mounted) {
+        setState(() => _isOnline = result.first != ConnectivityResult.none);
+      }
+    } catch (_) {}
 
     if (widget.type == 'pdf') {
-      _initOfflinePdf();
+      await _initOfflinePdf();
     } else if (widget.type == 'video') {
-      _initYoutube();
+      await _initYoutube();
     }
   }
 
   Future<void> _initOfflinePdf() async {
-    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
-    if (data == null || data.pdfUrl.isEmpty) return;
-
-    // Keshdan tekshirish
-    final cached = await OfflineCacheManager.getCachedPdf(data.pdfUrl);
-    if (cached != null && mounted) {
-      final newController =
-          PdfController(document: PdfDocument.openFile(cached.path));
-      setState(() {
-        _cachedPdf = cached;
-        _pdfController?.dispose(); // Eski controllerni dispose qil
-        _pdfController = newController;
-      });
+    if (_isWeb) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
     }
 
-    // Agar online bo'lsak, fon rejimida keshga yuklab qo'yamiz (agar hali yo'q bo'lsa)
-    if (_isOnline) {
-      OfflineCacheManager.downloadToCache(data.pdfUrl);
+    final data = ref.read(moduleDataProvider);
+    if (data == null || data.pdfUrl.isEmpty) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'PDF manzili kiritilmagan';
+      });
+      return;
+    }
+
+    if (mounted) setState(() { _isLoading = true; _errorMessage = null; });
+
+    try {
+      // 1. Avval keshdan tekshir
+      final cached = await OfflineCacheManager.getCachedPdf(data.pdfUrl);
+      if (cached != null && await cached.exists()) {
+        final controller = PdfController(
+          document: PdfDocument.openFile(cached.path),
+        );
+        if (mounted) {
+          setState(() {
+            _cachedPdf = cached;
+            _pdfController?.dispose();
+            _pdfController = controller;
+            _isLoading = false;
+          });
+        }
+        // Fon rejimida yangilash
+        if (_isOnline) OfflineCacheManager.downloadToCache(data.pdfUrl);
+        return;
+      }
+
+      // 2. Keshda yo'q — online bo'lsa yuklab ol
+      if (_isOnline) {
+        if (mounted) setState(() => _isLoading = true);
+        await OfflineCacheManager.downloadToCache(data.pdfUrl);
+        final downloaded = await OfflineCacheManager.getCachedPdf(data.pdfUrl);
+        if (downloaded != null && await downloaded.exists() && mounted) {
+          final controller = PdfController(
+            document: PdfDocument.openFile(downloaded.path),
+          );
+          setState(() {
+            _cachedPdf = downloaded;
+            _pdfController?.dispose();
+            _pdfController = controller;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+
+      // 3. Offline + keshda yo'q
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = _isOnline
+            ? 'PDF yuklab bo\'lib bo\'lmadi. Qayta urinib ko\'ring.'
+            : 'Offline rejim: PDF keshda mavjud emas.\nInternetga ulanib bir marta oching.';
+      });
+    } on PlatformException catch (e) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'PDF ochishda xatolik: ${e.message}';
+      });
+    } catch (e) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'Xatolik yuz berdi. Qayta urinib ko\'ring.';
+      });
     }
   }
 
-  void _initYoutube() {
-    if (_ytController != null || _isWeb) return;
-    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
-    if (data == null || data.videoUrl.isEmpty) return;
+  Future<void> _initYoutube() async {
+    if (_isWeb) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    final data = ref.read(moduleDataProvider);
+    if (data == null || data.videoUrl.isEmpty) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'Video manzili kiritilmagan';
+      });
+      return;
+    }
 
     final videoId = YoutubePlayer.convertUrlToId(data.videoUrl);
-    if (videoId != null) {
-      _ytController = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: false,
-          mute: false,
-          enableCaption: false,
-          disableDragSeek: false,
-        ),
-      );
+    if (videoId == null) {
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'Noto\'g\'ri YouTube URL manzili';
+      });
+      return;
+    }
+
+    final controller = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
+        autoPlay: false,
+        mute: false,
+        enableCaption: false,
+        disableDragSeek: false,
+      ),
+    );
+
+    // setState bilan yangilash — UI qayta quriladi
+    if (mounted) {
+      setState(() {
+        _ytController?.dispose();
+        _ytController = controller;
+        _isLoading = false;
+      });
     }
   }
 
@@ -126,19 +205,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       }
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } else {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
   }
 
   String _getIframeUrl(String originalUrl, bool isVideo) {
     if (isVideo) {
-      final vidId = YoutubePlayer.convertUrlToId(originalUrl) ?? "";
+      final vidId = YoutubePlayer.convertUrlToId(originalUrl) ?? '';
       return 'https://www.youtube.com/embed/$vidId?modestbranding=1&rel=0&controls=1&fs=0&iv_load_policy=3';
     }
-
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
     if (match != null) {
       final fileId = match.group(0);
@@ -152,12 +228,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     _connectivitySubscription.cancel();
     _ytController?.dispose();
     _pdfController?.dispose();
-    if (_isWeb && widget.type == 'pdf') {
-      setWebZoomable(false);
-    }
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-    ]);
+    if (_isWeb && widget.type == 'pdf') setWebZoomable(false);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
@@ -165,15 +237,22 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   @override
   Widget build(BuildContext context) {
     final isFullScreen = ref.watch(isFullScreenProvider);
-    if (isFullScreen) {
-      return _buildFullScreenView();
-    }
+    if (isFullScreen) return _buildFullScreenView();
 
     final data = ref.watch(moduleDataProvider);
-    if (data == null) return const Center(child: Text('Ma\'lumot yo\'q'));
+    if (data == null) {
+      return const Center(child: Text('Ma\'lumot yo\'q'));
+    }
 
     final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
-    if (url.isEmpty) return const Center(child: Text('Fayl kiritilmagan'));
+    if (url.isEmpty) {
+      return Center(
+        child: Text(
+          widget.type == 'pdf' ? 'Chizma kiritilmagan' : 'Video kiritilmagan',
+          style: const TextStyle(color: AppColors.textGray),
+        ),
+      );
+    }
 
     return Column(
       children: [
@@ -184,22 +263,25 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Expanded(
-                child: Text(data.artikul,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18)),
+                child: Text(
+                  data.artikul,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
               ),
+              // Offline belgisi
+              if (!_isOnline)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Icon(Icons.wifi_off, color: Colors.orange, size: 20),
+                ),
               IconButton(
                 onPressed: _toggleFullScreen,
                 icon: const Icon(Icons.fullscreen),
                 tooltip: 'To\'liq ekran',
               ),
               Icon(
-                widget.type == 'video'
-                    ? Icons.video_library
-                    : Icons.picture_as_pdf,
-                color: widget.type == 'video'
-                    ? AppColors.accent
-                    : AppColors.danger,
+                widget.type == 'video' ? Icons.video_library : Icons.picture_as_pdf,
+                color: widget.type == 'video' ? AppColors.accent : AppColors.danger,
               ),
             ],
           ),
@@ -210,7 +292,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildFullScreenView() {
-    final data = ref.read(moduleDataProvider); // Fixed: StateProvider access
+    final data = ref.read(moduleDataProvider);
     if (data == null) return const SizedBox();
     final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
 
@@ -224,23 +306,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               bottom: 0,
               left: 0,
               right: 0,
-              child: OrientationBuilder(
-                builder: (context, orientation) {
-                  final height =
-                      orientation == Orientation.portrait ? 80.0 : 60.0;
-                  return PointerInterceptor(
-                    child: Container(
-                      height: height,
-                      color: Colors.black.withOpacity(0.9),
-                      child: const Center(
-                        child: Text(
-                          'Xavfsiz Ko\'rish Rejimi',
-                          style: TextStyle(color: Colors.white54, fontSize: 10),
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              child: PointerInterceptor(
+                child: Container(
+                  height: 60,
+                  color: Colors.black.withOpacity(0.9),
+                  child: const Center(
+                    child: Text('Xavfsiz Ko\'rish Rejimi',
+                        style: TextStyle(color: Colors.white54, fontSize: 10)),
+                  ),
+                ),
               ),
             ),
           SafeArea(
@@ -263,38 +337,90 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildMediaContent(String url, dynamic data) {
+    // Yuklanish holati
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: AppColors.accent),
+            SizedBox(height: 12),
+            Text('Yuklanmoqda...', style: TextStyle(color: AppColors.textGray)),
+          ],
+        ),
+      );
+    }
+
+    // Xatolik holati
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _isOnline ? Icons.error_outline : Icons.wifi_off,
+                color: _isOnline ? AppColors.danger : Colors.orange,
+                size: 48,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textGray, height: 1.5),
+              ),
+              if (_isOnline) ...[
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() { _isLoading = true; _errorMessage = null; });
+                    if (widget.type == 'pdf') _initOfflinePdf();
+                    else _initYoutube();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Qayta urinish'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    // VIDEO
     if (widget.type == 'video') {
-      return _isWeb
-          ? buildWebIframe(_getIframeUrl(url, true), true,
-              key: ValueKey('vid_${data.artikul}'))
-          : _ytController != null
-              ? YoutubePlayer(
-                  controller: _ytController!,
-                  showVideoProgressIndicator: true,
-                  progressIndicatorColor: AppColors.accent,
-                )
-              : const Center(child: Text('Video yuklanmoqda...'));
-    }
-
-    if (!_isWeb) {
-      if (!_isOnline || _cachedPdf != null) {
-        if (_pdfController != null) {
-          return PdfView(
-            controller: _pdfController!,
-            scrollDirection: Axis.vertical,
-          );
-        } else if (!_isOnline) {
-          return const Center(
-            child: Text(
-              'Offline rejim: Fayl keshda mavjud emas.\nInternetga ulanib qayta urinib ko\'ring.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70),
-            ),
-          );
-        }
+      if (_isWeb) {
+        return buildWebIframe(_getIframeUrl(url, true), true,
+            key: ValueKey('vid_${data.artikul}'));
       }
+      if (_ytController != null) {
+        return YoutubePlayer(
+          controller: _ytController!,
+          showVideoProgressIndicator: true,
+          progressIndicatorColor: AppColors.accent,
+        );
+      }
+      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
+    // PDF — Mobile: keshdan ko'rish
+    if (!_isWeb && _pdfController != null) {
+      return PdfView(
+        controller: _pdfController!,
+        scrollDirection: Axis.vertical,
+        builders: PdfViewBuilders<DefaultBuilderOptions>(
+          options: const DefaultBuilderOptions(),
+          documentLoaderBuilder: (_) =>
+              const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          pageLoaderBuilder: (_, __) =>
+              const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        ),
+      );
+    }
+
+    // PDF — Web yoki online fallback
     return buildWebIframe(_getIframeUrl(url, false), false,
         key: ValueKey('pdf_${data.artikul}'));
   }
