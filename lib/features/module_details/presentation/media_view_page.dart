@@ -106,6 +106,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (mounted) setState(() => _videoController = controller);
   }
 
+  bool _isYoutubeUrl(String url) {
+    return url.contains('youtu.be') || url.contains('youtube.com');
+  }
+
   // YouTube yoki Google Drive videoni embed URL ga aylantirish
   String _buildVideoEmbedUrl(String url) {
     // Google Drive video
@@ -347,20 +351,35 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       child: Stack(
         children: [
           _buildMediaContent(url, data),
-          if (widget.type == 'video')
+          if (widget.type == 'video') ...[
+            // Top-right "Open with" tugmasini bloklash (fullscreen)
             Positioned(
-              bottom: 0, left: 0, right: 0,
+              top: 0,
+              right: 0,
               child: PointerInterceptor(
                 child: Container(
-                  height: 50,
-                  color: Colors.black.withOpacity(0.85),
-                  child: const Center(
-                    child: Text('Xavfsiz Ko\'rish Rejimi',
-                        style: TextStyle(color: Colors.white54, fontSize: 10)),
-                  ),
+                  width: 70,
+                  height: 70,
+                  color: Colors.transparent,
                 ),
               ),
             ),
+            // "Xavfsiz Ko'rish" faqat YouTube uchun
+            if (_isYoutubeUrl(ref.read(moduleDataProvider)?.videoUrl ?? ''))
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: PointerInterceptor(
+                  child: Container(
+                    height: 50,
+                    color: Colors.black.withOpacity(0.85),
+                    child: const Center(
+                      child: Text('Xavfsiz Ko\'rish Rejimi',
+                          style: TextStyle(color: Colors.white54, fontSize: 10)),
+                    ),
+                  ),
+                ),
+              ),
+          ],
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -442,6 +461,18 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             WebViewWidget(controller: _videoController!),
             if (_isLoading)
               const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+            // Top-right "Open with" tugmasini bloklash
+            Positioned(
+              top: 0,
+              right: 0,
+              child: PointerInterceptor(
+                child: Container(
+                  width: 70,
+                  height: 70,
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
           ],
         );
       }
