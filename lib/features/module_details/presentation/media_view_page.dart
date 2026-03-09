@@ -8,7 +8,6 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:video_player/video_player.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
@@ -37,14 +36,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   int _pdfTotalPages = 1;
   bool _isPdfLandscape = false;
 
-  // Video — Drive uchun video_player
-  VideoPlayerController? _videoPlayerController;
-  bool _isVideoPlaying = false;
-  Duration _videoDuration = Duration.zero;
-  Duration _videoPosition = Duration.zero;
-
-  // Video — YouTube uchun WebView
-  WebViewController? _ytWebViewController;
+  // Video — barcha video (Drive + YouTube) WebView bilan
+  WebViewController? _videoWebViewController;
 
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
@@ -53,7 +46,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isYoutubeUrl(String url) =>
       url.contains('youtu.be') || url.contains('youtube.com');
 
-  String _buildDriveStreamUrl(String url) {
+  /// Drive: to'g'ridan-to'g'ri download URL (PDF uchun)
+  String _buildDriveDownloadUrl(String url) {
     final match = RegExp(r'[-\w]{25,}').firstMatch(url);
     if (match != null) {
       return 'https://drive.google.com/uc?export=download&confirm=t&id=${match.group(0)}';
@@ -61,6 +55,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return url;
   }
 
+  /// Drive: preview embed URL (video uchun)
+  String _buildDrivePreviewUrl(String url) {
+    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
+    if (match != null) {
+      return 'https://drive.google.com/file/d/${match.group(0)}/preview';
+    }
+    return url;
+  }
+
+  /// YouTube: embed URL
   String _buildYoutubeEmbedUrl(String url) {
     String? videoId;
     if (url.contains('youtu.be/')) {
@@ -76,9 +80,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return url;
   }
 
+  /// Web iframe uchun embed URL
   String _buildVideoEmbedUrl(String url) {
     if (_isYoutubeUrl(url)) return _buildYoutubeEmbedUrl(url);
-    if (_isDriveUrl(url)) return _buildDriveStreamUrl(url);
+    if (_isDriveUrl(url)) return _buildDrivePreviewUrl(url);
     return url;
   }
 
@@ -120,47 +125,24 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     final data = ref.read(moduleDataProvider);
     if (data == null || data.videoUrl.isEmpty) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Video manzili kiritilmagan'; });
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'Video manzili kiritilmagan';
+      });
       return;
     }
 
     final url = data.videoUrl;
+    String embedUrl;
 
-    if (_isDriveUrl(url)) {
-      await _initDriveVideo(url);
-    } else if (_isYoutubeUrl(url)) {
-      await _initYoutubeVideo(url);
+    if (_isYoutubeUrl(url)) {
+      embedUrl = _buildYoutubeEmbedUrl(url);
+    } else if (_isDriveUrl(url)) {
+      embedUrl = _buildDrivePreviewUrl(url);
     } else {
-      await _initDriveVideo(url); // Boshqa URL ham video_player bilan ochish
+      embedUrl = url;
     }
-  }
 
-  Future<void> _initDriveVideo(String url) async {
-    final streamUrl = _buildDriveStreamUrl(url);
-    try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(streamUrl));
-      await controller.initialize();
-      controller.addListener(_videoListener);
-      if (mounted) {
-        setState(() {
-          _videoPlayerController?.dispose();
-          _videoPlayerController = controller;
-          _videoDuration = controller.value.duration;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Video yuklanmadi. Internet aloqasini tekshiring.';
-        });
-      }
-    }
-  }
-
-  Future<void> _initYoutubeVideo(String url) async {
-    final embedUrl = _buildYoutubeEmbedUrl(url);
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.black)
@@ -171,23 +153,13 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         onWebResourceError: (_) {
           if (mounted) setState(() {
             _isLoading = false;
-            _errorMessage = 'Video yuklanmadi.';
+            _errorMessage = 'Video yuklanmadi. Internet aloqasini tekshiring.';
           });
         },
       ))
       ..loadRequest(Uri.parse(embedUrl));
 
-    if (mounted) setState(() => _ytWebViewController = controller);
-  }
-
-  void _videoListener() {
-    if (!mounted || _videoPlayerController == null) return;
-    final val = _videoPlayerController!.value;
-    setState(() {
-      _isVideoPlaying = val.isPlaying;
-      _videoPosition = val.position;
-      _videoDuration = val.duration;
-    });
+    if (mounted) setState(() => _videoWebViewController = controller);
   }
 
   // ─── PDF INIT ──────────────────────────────────────────────────────
@@ -210,21 +182,23 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
     if (mounted) setState(() { _isLoading = true; _errorMessage = null; });
 
-    final downloadUrl = _buildDriveStreamUrl(data.pdfUrl);
+    final downloadUrl = _buildDriveDownloadUrl(data.pdfUrl);
     final cacheFile = await _getCacheFile(data.pdfUrl);
 
     try {
+      // Kesh bor va yaroqli — darhol ko'rsat, fonda yangilash
       if (await cacheFile.exists() && await cacheFile.length() > 1024) {
         try {
           final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
           if (mounted) setState(() { _pdfController?.dispose(); _pdfController = controller; _isLoading = false; });
-          if (_isOnline) _downloadFile(downloadUrl, cacheFile);
+          if (_isOnline) _downloadPdf(downloadUrl, cacheFile);
           return;
         } catch (_) { await cacheFile.delete(); }
       }
+      // Kesh yo'q — yuklab olish
       if (_isOnline) {
-        await _downloadFile(downloadUrl, cacheFile);
-        if (await cacheFile.exists() && await cacheFile.length() > 1024) {
+        final ok = await _downloadPdf(downloadUrl, cacheFile);
+        if (ok && await cacheFile.exists() && await cacheFile.length() > 1024) {
           final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
           if (mounted) setState(() { _pdfController?.dispose(); _pdfController = controller; _isLoading = false; });
           return;
@@ -232,20 +206,52 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       }
       if (mounted) setState(() {
         _isLoading = false;
-        _errorMessage = _isOnline ? 'PDF yuklab bo\'lib bo\'lmadi.' : 'Offline: PDF keshda yo\'q.\nInternetga ulanib bir marta oching.';
+        _errorMessage = _isOnline
+            ? 'PDF yuklab bo\'lib bo\'lmadi.'
+            : 'Offline: PDF keshda yo\'q.\nInternetga ulanib bir marta oching.';
       });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'PDF ochishda xatolik.'; });
     }
   }
 
-  Future<void> _downloadFile(String url, File file) async {
+  /// Drive virus-scan confirmation tokenini ham hisobga olgan PDF yuklab olish.
+  Future<bool> _downloadPdf(String url, File file) async {
     try {
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
+      var response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
+
+      // Drive ba'zan virus-scan ogohlantirish sahifasini qaytaradi (HTML)
+      final contentType = response.headers['content-type'] ?? '';
+      if (contentType.contains('text/html')) {
+        final body = response.body;
+
+        // Yangi Drive format: uuid parametri
+        final uuidMatch = RegExp(r'uuid=([^&"\'>\s]+)').firstMatch(body);
+        // Eski Drive format: confirm parametri
+        final confirmMatch = RegExp(r'confirm=([^&"\'>\s]+)').firstMatch(body);
+        // Forma action URL
+        final actionMatch = RegExp(r'action="([^"]+)"').firstMatch(body);
+
+        String newUrl = url;
+        if (uuidMatch != null) {
+          newUrl = '$url&uuid=${uuidMatch.group(1)}';
+        } else if (confirmMatch != null && confirmMatch.group(1) != 't') {
+          newUrl = '$url&confirm=${confirmMatch.group(1)}';
+        } else if (actionMatch != null) {
+          newUrl = actionMatch.group(1)!.replaceAll('&amp;', '&');
+        }
+
+        if (newUrl != url) {
+          response = await http.get(Uri.parse(newUrl)).timeout(const Duration(seconds: 60));
+        }
+      }
+
       if (response.statusCode == 200 && response.bodyBytes.length > 1024) {
         await file.writeAsBytes(response.bodyBytes);
+        return true;
       }
     } catch (_) {}
+    return false;
   }
 
   // ─── FULLSCREEN & ROTATE ──────────────────────────────────────────
@@ -275,8 +281,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   void dispose() {
     _connectivitySubscription.cancel();
     _pdfController?.dispose();
-    _videoPlayerController?.removeListener(_videoListener);
-    _videoPlayerController?.dispose();
     if (_isWeb && widget.type == 'pdf') setWebZoomable(false);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -295,7 +299,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     final url = widget.type == 'pdf' ? data.pdfUrl : data.videoUrl;
     if (url.isEmpty) {
       return Center(
-        child: Text(widget.type == 'pdf' ? 'Chizma kiritilmagan' : 'Video kiritilmagan',
+        child: Text(
+            widget.type == 'pdf' ? 'Chizma kiritilmagan' : 'Video kiritilmagan',
             style: const TextStyle(color: AppColors.textGray)),
       );
     }
@@ -329,7 +334,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             IconButton(
               onPressed: _togglePdfRotate,
               icon: Icon(
-                _isPdfLandscape ? Icons.stay_primary_portrait : Icons.stay_primary_landscape,
+                _isPdfLandscape
+                    ? Icons.stay_primary_portrait
+                    : Icons.stay_primary_landscape,
                 color: AppColors.primary),
               tooltip: 'Burish',
             ),
@@ -356,7 +363,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       child: Stack(
         children: [
           _buildContent(url, data),
-          // YouTube uchun bottom bar
+          // YouTube: "Xavfsiz Ko'rish Rejimi" pastki bar
           if (widget.type == 'video' && _isYoutubeUrl(data.videoUrl))
             Positioned(
               bottom: 0, left: 0, right: 0,
@@ -371,8 +378,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 ),
               ),
             ),
-          // YouTube top-right open tugmasini bloklash
-          if (widget.type == 'video' && _isYoutubeUrl(data.videoUrl))
+          // Top-right tugmani bloklash (YouTube + Drive)
+          if (widget.type == 'video')
             Positioned(
               top: 0, right: 0,
               child: PointerInterceptor(
@@ -401,7 +408,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   Widget _buildContent(String url, dynamic data) {
     // Yuklanish
-    if (_isLoading && (_videoPlayerController == null && _ytWebViewController == null)) {
+    if (_isLoading) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -450,24 +457,35 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         return buildWebIframe(_buildVideoEmbedUrl(url), true,
             key: ValueKey('vid_${data.artikul}'));
       }
-      // Mobile: Drive — video_player bilan custom controls
-      if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
-        return _buildDriveVideoWidget();
-      }
-      // Mobile: YouTube — WebView
-      if (_ytWebViewController != null) {
+      // Mobile: WebView (Drive + YouTube ikkalasi uchun)
+      if (_videoWebViewController != null) {
+        final isDrive = _isDriveUrl(url);
         return Stack(
           children: [
-            WebViewWidget(controller: _ytWebViewController!),
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-            // Open with tugmasini bloklash
+            WebViewWidget(controller: _videoWebViewController!),
+            // Top-right: "Watch on YouTube" / "Drive'da ochish" tugmasini bloklash
             Positioned(
               top: 0, right: 0,
               child: PointerInterceptor(
                 child: Container(width: 70, height: 70, color: Colors.transparent),
               ),
             ),
+            // YouTube: pastki chap logo/link bloklash
+            if (!isDrive)
+              Positioned(
+                bottom: 0, left: 0,
+                child: PointerInterceptor(
+                  child: Container(width: 160, height: 50, color: Colors.transparent),
+                ),
+              ),
+            // Drive: pastki bar bloklash
+            if (isDrive)
+              Positioned(
+                bottom: 0, left: 0, right: 0,
+                child: PointerInterceptor(
+                  child: Container(height: 44, color: Colors.transparent),
+                ),
+              ),
           ],
         );
       }
@@ -490,85 +508,5 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
     // Web: PDF.js
     return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
-  }
-
-  // ─── DRIVE VIDEO CUSTOM WIDGET ────────────────────────────────────
-  Widget _buildDriveVideoWidget() {
-    final c = _videoPlayerController!;
-    final total = _videoDuration.inSeconds > 0 ? _videoDuration.inSeconds.toDouble() : 1.0;
-    final current = _videoPosition.inSeconds.toDouble().clamp(0.0, total);
-
-    return Column(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              if (c.value.isPlaying) c.pause(); else c.play();
-            },
-            child: Container(
-              color: Colors.black,
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: c.value.aspectRatio,
-                  child: VideoPlayer(c),
-                ),
-              ),
-            ),
-          ),
-        ),
-        // Custom controls
-        Container(
-          color: Colors.black87,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              IconButton(
-                onPressed: () {
-                  if (c.value.isPlaying) c.pause(); else c.play();
-                },
-                icon: Icon(
-                  _isVideoPlaying ? Icons.pause : Icons.play_arrow,
-                  color: Colors.white,
-                ),
-              ),
-              Text(
-                '${_formatDuration(_videoPosition)} / ${_formatDuration(_videoDuration)}',
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-                    activeTrackColor: AppColors.accent,
-                    thumbColor: AppColors.accent,
-                    inactiveTrackColor: Colors.white30,
-                    overlayColor: AppColors.accent.withOpacity(0.2),
-                  ),
-                  child: Slider(
-                    value: current,
-                    min: 0,
-                    max: total,
-                    onChanged: (val) => c.seekTo(Duration(seconds: val.toInt())),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: _toggleFullScreen,
-                icon: const Icon(Icons.fullscreen, color: Colors.white, size: 20),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDuration(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
   }
 }
