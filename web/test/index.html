@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Test</title>
+<style>
+  body { font-family: sans-serif; background: #1a1a2e; color: #eee; padding: 16px; margin: 0; }
+  h1 { font-size: 18px; color: #e94560; }
+  .card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .card h2 { font-size: 15px; margin: 0 0 12px; color: #0f3460; background: #e94560; padding: 6px 12px; border-radius: 6px; display:inline-block; }
+  input { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #444; background: #0f3460; color: #fff; font-size: 13px; margin-bottom: 8px; }
+  button { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; margin-right: 6px; margin-bottom: 6px; }
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-secondary { background: #0f3460; color: #fff; }
+  .result { background: #0a0a1a; border-radius: 8px; margin-top: 10px; overflow: hidden; }
+  iframe, video { width: 100%; border: none; display: block; }
+  .log { font-size: 11px; color: #aaa; background: #0a0a1a; padding: 8px; border-radius: 6px; margin-top: 8px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:6px; }
+  .ok { background:#2d6a4f; color:#95d5b2; }
+  .fail { background:#6a2d2d; color:#ffb3b3; }
+  .warn { background:#6a5a2d; color:#ffd166; }
+</style>
+</head>
+<body>
+<h1>🧪 Media Test Sahifasi</h1>
+<p style="font-size:12px;color:#888;">Hozirgi app bilan bog'liq emas. Faqat test uchun.</p>
+
+<!-- VIDEO TESTS -->
+<div class="card">
+  <h2>🎬 Video Test</h2>
+  <input id="videoUrl" placeholder="Drive yoki YouTube URL kiriting" 
+    value="https://drive.google.com/file/d/SIZNING_FILE_ID/view">
+  
+  <div>
+    <button class="btn-primary" onclick="testVideoIframe()">1. iframe /preview</button>
+    <button class="btn-secondary" onclick="testVideoHtml5()">2. HTML5 &lt;video&gt;</button>
+    <button class="btn-secondary" onclick="testYoutube()">3. YouTube embed</button>
+    <button class="btn-secondary" onclick="clearVideo()">✕ Tozalash</button>
+  </div>
+  
+  <div class="result" id="videoResult" style="min-height:200px; background:#000; display:flex; align-items:center; justify-content:center;">
+    <span style="color:#555">Yuqoridagi tugmani bosing</span>
+  </div>
+  <div class="log" id="videoLog">Log...\n</div>
+</div>
+
+<!-- PDF TESTS -->
+<div class="card">
+  <h2>📄 PDF Test</h2>
+  <input id="pdfUrl" placeholder="Drive PDF URL kiriting"
+    value="https://drive.google.com/file/d/SIZNING_PDF_FILE_ID/view">
+  
+  <div>
+    <button class="btn-primary" onclick="testPdfIframe()">1. iframe /preview</button>
+    <button class="btn-secondary" onclick="testPdfJs()">2. PDF.js (CORS test)</button>
+    <button class="btn-secondary" onclick="testGDocsViewer()">3. Google Docs Viewer</button>
+    <button class="btn-secondary" onclick="clearPdf()">✕ Tozalash</button>
+  </div>
+  
+  <div class="result" id="pdfResult" style="min-height:300px; background:#525659; display:flex; align-items:center; justify-content:center;">
+    <span style="color:#aaa">Yuqoridagi tugmani bosing</span>
+  </div>
+  <div class="log" id="pdfLog">Log...\n</div>
+</div>
+
+<script>
+function extractId(url) {
+  const m = url.match(/[-\w]{25,}/);
+  return m ? m[0] : null;
+}
+
+function vlog(msg) {
+  const el = document.getElementById('videoLog');
+  el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function plog(msg) {
+  const el = document.getElementById('pdfLog');
+  el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── VIDEO ──────────────────────────────────────────────
+function testVideoIframe() {
+  const url = document.getElementById('videoUrl').value;
+  const id = extractId(url);
+  if (!id) { vlog('❌ ID topilmadi'); return; }
+  const embedUrl = `https://drive.google.com/file/d/${id}/preview`;
+  vlog('▶ iframe /preview: ' + embedUrl);
+  document.getElementById('videoResult').innerHTML =
+    `<iframe src="${embedUrl}" height="250" allowfullscreen></iframe>`;
+}
+
+function testVideoHtml5() {
+  const url = document.getElementById('videoUrl').value;
+  const id = extractId(url);
+  if (!id) { vlog('❌ ID topilmadi'); return; }
+  const streamUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${id}`;
+  vlog('▶ HTML5 <video>: ' + streamUrl);
+  const v = document.createElement('video');
+  v.controls = true;
+  v.style.width = '100%';
+  v.style.height = '250px';
+  v.style.background = '#000';
+  v.src = streamUrl;
+  v.addEventListener('loadedmetadata', () => vlog('✅ loadedmetadata — ishlaydi!'));
+  v.addEventListener('error', (e) => vlog('❌ video error: ' + (v.error ? v.error.message : 'noma\'lum')));
+  document.getElementById('videoResult').innerHTML = '';
+  document.getElementById('videoResult').appendChild(v);
+  v.load();
+}
+
+function testYoutube() {
+  const url = document.getElementById('videoUrl').value;
+  let videoId = null;
+  const m1 = url.match(/youtu\.be\/([\w-]+)/);
+  const m2 = url.match(/[?&]v=([\w-]+)/);
+  const m3 = url.match(/embed\/([\w-]+)/);
+  videoId = (m1||m2||m3)?.[1];
+  if (!videoId) { vlog('❌ YouTube ID topilmadi'); return; }
+  const embedUrl = `https://www.youtube.com/embed/${videoId}?controls=1`;
+  vlog('▶ YouTube embed: ' + embedUrl);
+  document.getElementById('videoResult').innerHTML =
+    `<iframe src="${embedUrl}" height="250" allowfullscreen></iframe>`;
+}
+
+function clearVideo() {
+  document.getElementById('videoResult').innerHTML = '<span style="color:#555">Tozalandi</span>';
+}
+
+// ── PDF ────────────────────────────────────────────────
+function testPdfIframe() {
+  const url = document.getElementById('pdfUrl').value;
+  const id = extractId(url);
+  if (!id) { plog('❌ ID topilmadi'); return; }
+  const previewUrl = `https://drive.google.com/file/d/${id}/preview`;
+  plog('▶ iframe /preview: ' + previewUrl);
+  document.getElementById('pdfResult').innerHTML =
+    `<iframe src="${previewUrl}" height="400"></iframe>`;
+}
+
+function testPdfJs() {
+  const url = document.getElementById('pdfUrl').value;
+  const id = extractId(url);
+  if (!id) { plog('❌ ID topilmadi'); return; }
+  const dlUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${id}`;
+  plog('▶ PDF.js CORS fetch urinmoqda: ' + dlUrl);
+  
+  // CORS tekshiruvi
+  fetch(dlUrl, {method: 'HEAD', mode: 'cors'})
+    .then(r => {
+      plog('✅ HEAD ' + r.status + ' ' + r.statusText);
+      plog('   content-type: ' + (r.headers.get('content-type') || 'yo\'q'));
+    })
+    .catch(e => plog('❌ CORS blok: ' + e.message));
+
+  // PDF.js bilan urinish
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  script.onload = () => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.getDocument({url: dlUrl, withCredentials: false}).promise
+      .then(pdf => {
+        plog('✅ PDF.js yukladi! ' + pdf.numPages + ' sahifa');
+        document.getElementById('pdfResult').innerHTML =
+          `<div style="color:#95d5b2;padding:20px;text-align:center">✅ PDF.js ishladi! ${pdf.numPages} sahifa</div>`;
+      })
+      .catch(e => plog('❌ PDF.js xato: ' + e.message));
+  };
+  document.head.appendChild(script);
+}
+
+function testGDocsViewer() {
+  const url = document.getElementById('pdfUrl').value;
+  const id = extractId(url);
+  if (!id) { plog('❌ ID topilmadi'); return; }
+  const dlUrl = encodeURIComponent(`https://drive.google.com/uc?export=download&id=${id}`);
+  const viewerUrl = `https://docs.google.com/viewer?url=${dlUrl}&embedded=true`;
+  plog('▶ Google Docs Viewer: ' + viewerUrl);
+  document.getElementById('pdfResult').innerHTML =
+    `<iframe src="${viewerUrl}" height="400"></iframe>`;
+}
+
+function clearPdf() {
+  document.getElementById('pdfResult').innerHTML = '<span style="color:#aaa">Tozalandi</span>';
+}
+</script>
+</body>
+</html>
