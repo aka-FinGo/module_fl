@@ -30,13 +30,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // PDF
-  PdfController? _pdfController;
+  // PDF — ikki rejim
+  PdfController? _pdfController;         // native pdfx (muvaffaqiyatli yuklab olgandan keyin)
+  WebViewController? _pdfWebViewController; // WebView /preview (darhol)
+  bool _isPdfNative = false;             // true bo'lsa pdfx ko'rsatiladi
   int _pdfCurrentPage = 1;
   int _pdfTotalPages = 1;
   bool _isPdfLandscape = false;
 
-  // Video — barcha video (Drive + YouTube) WebView bilan
+  // Video — WebView (Drive + YouTube)
   WebViewController? _videoWebViewController;
 
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
@@ -46,25 +48,24 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isYoutubeUrl(String url) =>
       url.contains('youtu.be') || url.contains('youtube.com');
 
-  /// Drive: to'g'ridan-to'g'ri download URL (PDF uchun)
-  String _buildDriveDownloadUrl(String url) {
-    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
-    if (match != null) {
-      return 'https://drive.google.com/uc?export=download&confirm=t&id=${match.group(0)}';
-    }
-    return url;
+  String _extractDriveId(String url) {
+    return RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0) ?? '';
   }
 
-  /// Drive: preview embed URL (video uchun)
   String _buildDrivePreviewUrl(String url) {
-    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
-    if (match != null) {
-      return 'https://drive.google.com/file/d/${match.group(0)}/preview';
-    }
-    return url;
+    final id = _extractDriveId(url);
+    return id.isNotEmpty
+        ? 'https://drive.google.com/file/d/$id/preview'
+        : url;
   }
 
-  /// YouTube: embed URL
+  String _buildDriveDownloadUrl(String url) {
+    final id = _extractDriveId(url);
+    return id.isNotEmpty
+        ? 'https://drive.google.com/uc?export=download&confirm=t&id=$id'
+        : url;
+  }
+
   String _buildYoutubeEmbedUrl(String url) {
     String? videoId;
     if (url.contains('youtu.be/')) {
@@ -80,7 +81,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return url;
   }
 
-  /// Web iframe uchun embed URL
   String _buildVideoEmbedUrl(String url) {
     if (_isYoutubeUrl(url)) return _buildYoutubeEmbedUrl(url);
     if (_isDriveUrl(url)) return _buildDrivePreviewUrl(url);
@@ -97,8 +97,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       if (!mounted) return;
       final isNowOnline = results.first != ConnectivityResult.none;
       setState(() => _isOnline = isNowOnline);
-      if (widget.type == 'pdf' && isNowOnline && _pdfController == null && !_isWeb) {
-        _initPdf();
+      if (widget.type == 'pdf' && isNowOnline && !_isPdfNative && !_isWeb) {
+        _tryDownloadPdfInBackground();
       }
     });
     if (_isWeb && widget.type == 'pdf') setWebZoomable(true);
@@ -116,13 +116,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
   }
 
-  // ─── VIDEO INIT ───────────────────────────────────────────────────
+  // ─── VIDEO ────────────────────────────────────────────────────────
   Future<void> _initVideo() async {
     if (_isWeb) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
-
     final data = ref.read(moduleDataProvider);
     if (data == null || data.videoUrl.isEmpty) {
       if (mounted) setState(() {
@@ -131,10 +130,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       });
       return;
     }
-
     final url = data.videoUrl;
     String embedUrl;
-
     if (_isYoutubeUrl(url)) {
       embedUrl = _buildYoutubeEmbedUrl(url);
     } else if (_isDriveUrl(url)) {
@@ -162,14 +159,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (mounted) setState(() => _videoWebViewController = controller);
   }
 
-  // ─── PDF INIT ──────────────────────────────────────────────────────
-  Future<File> _getCacheFile(String url) async {
-    final dir = await getTemporaryDirectory();
-    final match = RegExp(r'[-\w]{25,}').firstMatch(url);
-    final fileName = match != null ? 'pdf_${match.group(0)}.pdf' : 'pdf_cache.pdf';
-    return File('${dir.path}/$fileName');
-  }
-
+  // ─── PDF ──────────────────────────────────────────────────────────
   Future<void> _initPdf() async {
     if (_isWeb) {
       if (mounted) setState(() => _isLoading = false);
@@ -177,59 +167,112 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
     final data = ref.read(moduleDataProvider);
     if (data == null || data.pdfUrl.isEmpty) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'PDF manzili kiritilmagan'; });
+      if (mounted) setState(() {
+        _isLoading = false;
+        _errorMessage = 'PDF manzili kiritilmagan';
+      });
       return;
     }
-    if (mounted) setState(() { _isLoading = true; _errorMessage = null; });
 
-    final downloadUrl = _buildDriveDownloadUrl(data.pdfUrl);
-    final cacheFile = await _getCacheFile(data.pdfUrl);
+    final url = data.pdfUrl;
 
-    try {
-      // Kesh bor va yaroqli — darhol ko'rsat, fonda yangilash
+    // 1. Avval keshni tekshir — mavjud bo'lsa darhol pdfx bilan ko'rsat
+    if (_isOnline || true) {
+      final cacheFile = await _getCacheFile(url);
       if (await cacheFile.exists() && await cacheFile.length() > 1024) {
         try {
           final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
-          if (mounted) setState(() { _pdfController?.dispose(); _pdfController = controller; _isLoading = false; });
-          if (_isOnline) _downloadPdf(downloadUrl, cacheFile);
+          if (mounted) {
+            setState(() {
+              _pdfController?.dispose();
+              _pdfController = controller;
+              _isPdfNative = true;
+              _isLoading = false;
+            });
+          }
+          // Fonda yangilashtir
+          if (_isOnline) _tryDownloadPdfInBackground();
           return;
-        } catch (_) { await cacheFile.delete(); }
-      }
-      // Kesh yo'q — yuklab olish
-      if (_isOnline) {
-        final ok = await _downloadPdf(downloadUrl, cacheFile);
-        if (ok && await cacheFile.exists() && await cacheFile.length() > 1024) {
-          final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
-          if (mounted) setState(() { _pdfController?.dispose(); _pdfController = controller; _isLoading = false; });
-          return;
+        } catch (_) {
+          await cacheFile.delete();
         }
       }
-      if (mounted) setState(() {
-        _isLoading = false;
-        _errorMessage = _isOnline
-            ? 'PDF yuklab bo\'lib bo\'lmadi.'
-            : 'Offline: PDF keshda yo\'q.\nInternetga ulanib bir marta oching.';
-      });
-    } catch (_) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'PDF ochishda xatolik.'; });
+    }
+
+    // 2. Kesh yo'q — darhol WebView /preview ko'rsat
+    _initPdfWebView(url);
+
+    // 3. Parallel ravishda yuklab olishga urinish
+    if (_isOnline) _tryDownloadPdfInBackground();
+  }
+
+  void _initPdfWebView(String url) {
+    final previewUrl = _buildDrivePreviewUrl(url);
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF525659))
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          if (mounted && !_isPdfNative) setState(() => _isLoading = false);
+        },
+        onWebResourceError: (_) {
+          if (mounted && !_isPdfNative) setState(() {
+            _isLoading = false;
+            _errorMessage = 'PDF yuklanmadi. Internet aloqasini tekshiring.';
+          });
+        },
+      ))
+      ..loadRequest(Uri.parse(previewUrl));
+
+    if (mounted && !_isPdfNative) {
+      setState(() => _pdfWebViewController = controller);
     }
   }
 
-  /// Drive virus-scan confirmation tokenini ham hisobga olgan PDF yuklab olish.
+  /// Fon rejimda PDF yuklab olish — muvaffaqiyatli bo'lsa pdfx ga o'tish
+  Future<void> _tryDownloadPdfInBackground() async {
+    final data = ref.read(moduleDataProvider);
+    if (data == null || data.pdfUrl.isEmpty) return;
+
+    final url = data.pdfUrl;
+    final cacheFile = await _getCacheFile(url);
+    final downloadUrl = _buildDriveDownloadUrl(url);
+
+    final ok = await _downloadPdf(downloadUrl, cacheFile);
+    if (!ok) return;
+
+    // Yuklab olindi — pdfx ga o'tish
+    try {
+      final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
+      if (mounted) {
+        setState(() {
+          _pdfController?.dispose();
+          _pdfController = controller;
+          _isPdfNative = true;
+          // WebView ni endi ishlatmaymiz
+          _pdfWebViewController = null;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<File> _getCacheFile(String url) async {
+    final dir = await getTemporaryDirectory();
+    final id = _extractDriveId(url);
+    final fileName = id.isNotEmpty ? 'pdf_$id.pdf' : 'pdf_cache.pdf';
+    return File('${dir.path}/$fileName');
+  }
+
+  /// Drive virus-scan confirmation bypass bilan yuklab olish
   Future<bool> _downloadPdf(String url, File file) async {
     try {
       var response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
 
-      // Drive ba'zan virus-scan ogohlantirish sahifasini qaytaradi (HTML)
       final contentType = response.headers['content-type'] ?? '';
       if (contentType.contains('text/html')) {
         final body = response.body;
-
-        // Yangi Drive format: uuid parametri
         final uuidMatch = RegExp(r'uuid=([^&>\s]+)').firstMatch(body);
-        // Eski Drive format: confirm parametri
         final confirmMatch = RegExp(r'confirm=([^&>\s]+)').firstMatch(body);
-        // Forma action URL
         final actionMatch = RegExp(r'action="([^"]+)"').firstMatch(body);
 
         String newUrl = url;
@@ -247,8 +290,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       }
 
       if (response.statusCode == 200 && response.bodyBytes.length > 1024) {
-        await file.writeAsBytes(response.bodyBytes);
-        return true;
+        // PDF signature tekshiruvi
+        final bytes = response.bodyBytes;
+        if (bytes.length >= 4 &&
+            bytes[0] == 0x25 && bytes[1] == 0x50 &&
+            bytes[2] == 0x44 && bytes[3] == 0x46) {
+          await file.writeAsBytes(bytes);
+          return true;
+        }
       }
     } catch (_) {}
     return false;
@@ -309,11 +358,29 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       children: [
         const SizedBox(height: 10),
         _buildTopBar(data, url),
-        if (widget.type == 'pdf' && _pdfController != null)
+        // Sahifa raqami — faqat native pdfx rejimida
+        if (widget.type == 'pdf' && _isPdfNative && _pdfController != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text('$_pdfCurrentPage / $_pdfTotalPages',
                 style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
+          ),
+        // WebView rejimida "fonda yuklanmoqda" ko'rsatkich
+        if (widget.type == 'pdf' && !_isPdfNative && _pdfWebViewController != null && _isOnline)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 10, height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray),
+                ),
+                const SizedBox(width: 6),
+                const Text('Native rejim yuklanmoqda...',
+                    style: TextStyle(color: AppColors.textGray, fontSize: 11)),
+              ],
+            ),
           ),
         Expanded(child: _buildContent(url, data)),
       ],
@@ -330,7 +397,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           if (!_isOnline)
             const Padding(padding: EdgeInsets.only(right: 4),
                 child: Icon(Icons.wifi_off, color: Colors.orange, size: 18)),
-          if (widget.type == 'pdf' && _pdfController != null)
+          // Rotate — faqat native pdfx rejimida
+          if (widget.type == 'pdf' && _isPdfNative && _pdfController != null)
             IconButton(
               onPressed: _togglePdfRotate,
               icon: Icon(
@@ -363,7 +431,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       child: Stack(
         children: [
           _buildContent(url, data),
-          // YouTube: "Xavfsiz Ko'rish Rejimi" pastki bar
           if (widget.type == 'video' && _isYoutubeUrl(data.videoUrl))
             Positioned(
               bottom: 0, left: 0, right: 0,
@@ -378,7 +445,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 ),
               ),
             ),
-          // Top-right tugmani bloklash (YouTube + Drive)
           if (widget.type == 'video')
             Positioned(
               top: 0, right: 0,
@@ -386,7 +452,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 child: Container(width: 70, height: 70, color: Colors.transparent),
               ),
             ),
-          // Yopish tugmasi
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -407,8 +472,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildContent(String url, dynamic data) {
-    // Yuklanish
-    if (_isLoading) {
+    if (_isLoading &&
+        _videoWebViewController == null &&
+        _pdfWebViewController == null &&
+        _pdfController == null) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -421,8 +488,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // Xatolik
-    if (_errorMessage != null) {
+    if (_errorMessage != null &&
+        _pdfWebViewController == null &&
+        _pdfController == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -437,7 +505,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () {
-                  setState(() { _isLoading = true; _errorMessage = null; });
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = null;
+                    _isPdfNative = false;
+                    _pdfWebViewController = null;
+                  });
                   if (widget.type == 'pdf') _initPdf(); else _initVideo();
                 },
                 icon: const Icon(Icons.refresh),
@@ -452,25 +525,21 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     // ── VIDEO ──────────────────────────────────────────────────────
     if (widget.type == 'video') {
-      // Web
       if (_isWeb) {
         return buildWebIframe(_buildVideoEmbedUrl(url), true,
             key: ValueKey('vid_${data.artikul}'));
       }
-      // Mobile: WebView (Drive + YouTube ikkalasi uchun)
       if (_videoWebViewController != null) {
         final isDrive = _isDriveUrl(url);
         return Stack(
           children: [
             WebViewWidget(controller: _videoWebViewController!),
-            // Top-right: "Watch on YouTube" / "Drive'da ochish" tugmasini bloklash
             Positioned(
               top: 0, right: 0,
               child: PointerInterceptor(
                 child: Container(width: 70, height: 70, color: Colors.transparent),
               ),
             ),
-            // YouTube: pastki chap logo/link bloklash
             if (!isDrive)
               Positioned(
                 bottom: 0, left: 0,
@@ -478,7 +547,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                   child: Container(width: 160, height: 50, color: Colors.transparent),
                 ),
               ),
-            // Drive: pastki bar bloklash
             if (isDrive)
               Positioned(
                 bottom: 0, left: 0, right: 0,
@@ -493,8 +561,13 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
 
     // ── PDF ────────────────────────────────────────────────────────
-    // Mobile: pdfx
-    if (!_isWeb && _pdfController != null) {
+    // Web
+    if (_isWeb) {
+      return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
+    }
+
+    // Mobile: native pdfx (yuklab olingandan keyin)
+    if (_isPdfNative && _pdfController != null) {
       return PdfView(
         controller: _pdfController!,
         scrollDirection: Axis.vertical,
@@ -506,7 +579,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         },
       );
     }
-    // Web: PDF.js
-    return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
+
+    // Mobile: WebView /preview (darhol ko'rinadi, yuklab olish kutilmoqda)
+    if (_pdfWebViewController != null) {
+      return WebViewWidget(controller: _pdfWebViewController!);
+    }
+
+    return const Center(child: CircularProgressIndicator(color: AppColors.accent));
   }
 }
