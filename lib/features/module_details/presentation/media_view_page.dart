@@ -85,11 +85,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return;
     }
 
-    final embedUrl = _buildYoutubeEmbedUrl(data.videoUrl);
-    if (embedUrl == null) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Noto\'g\'ri YouTube URL'; });
-      return;
-    }
+    final embedUrl = _buildVideoEmbedUrl(data.videoUrl);
 
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -110,7 +106,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (mounted) setState(() => _videoController = controller);
   }
 
-  String? _buildYoutubeEmbedUrl(String url) {
+  // YouTube yoki Google Drive videoni embed URL ga aylantirish
+  String _buildVideoEmbedUrl(String url) {
+    // Google Drive video
+    if (url.contains('drive.google.com')) {
+      final match = RegExp(r'[-\w]{25,}').firstMatch(url);
+      if (match != null) {
+        return 'https://drive.google.com/file/d/${match.group(0)}/preview';
+      }
+    }
+    // YouTube
     String? videoId;
     if (url.contains('youtu.be/')) {
       videoId = url.split('youtu.be/')[1].split('?')[0];
@@ -119,8 +124,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     } else if (url.contains('youtube.com/embed/')) {
       videoId = url.split('youtube.com/embed/')[1].split('?')[0];
     }
-    if (videoId == null || videoId.isEmpty) return null;
-    return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&controls=1';
+    if (videoId != null && videoId.isNotEmpty) {
+      return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&controls=1';
+    }
+    // Boshqa URL — to'g'ridan yuklaymiz
+    return url;
   }
 
   // --- PDF ---
@@ -424,7 +432,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     // VIDEO — WebView (ham mobile, ham web)
     if (widget.type == 'video') {
       if (_isWeb) {
-        final embedUrl = _buildYoutubeEmbedUrl(url) ?? url;
+        final embedUrl = _buildVideoEmbedUrl(url);
         return buildWebIframe(embedUrl, true, key: ValueKey('vid_${data.artikul}'));
       }
       // Mobile WebView
