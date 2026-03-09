@@ -1,14 +1,14 @@
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:webview_flutter/webview_flutter.dart';
+import 'dart:io';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../shell/presentation/shell_page.dart';
@@ -23,14 +23,22 @@ class MediaViewPage extends ConsumerStatefulWidget {
 }
 
 class _MediaViewPageState extends ConsumerState<MediaViewPage> {
-  YoutubePlayerController? _ytController;
   final bool _isWeb =
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
   bool _isOnline = true;
   bool _isLoading = true;
   String? _errorMessage;
+
+  // PDF uchun
   PdfController? _pdfController;
+  int _pdfCurrentPage = 1;
+  int _pdfTotalPages = 1;
+  bool _isPdfLandscape = false;
+
+  // Video uchun (WebView)
+  WebViewController? _videoController;
+
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   @override
@@ -59,12 +67,63 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     if (widget.type == 'pdf') {
       await _initPdf();
-    } else if (widget.type == 'video') {
-      await _initYoutube();
+    } else {
+      await _initVideo();
     }
   }
 
-  // PDF ni to'g'ri Google Drive download URL ga aylantirish
+  // --- VIDEO ---
+  Future<void> _initVideo() async {
+    if (_isWeb) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    final data = ref.read(moduleDataProvider);
+    if (data == null || data.videoUrl.isEmpty) {
+      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Video manzili kiritilmagan'; });
+      return;
+    }
+
+    final embedUrl = _buildYoutubeEmbedUrl(data.videoUrl);
+    if (embedUrl == null) {
+      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Noto\'g\'ri YouTube URL'; });
+      return;
+    }
+
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) {
+          if (mounted) setState(() => _isLoading = false);
+        },
+        onWebResourceError: (error) {
+          if (mounted) setState(() {
+            _isLoading = false;
+            _errorMessage = 'Video yuklanmadi. Internet aloqasini tekshiring.';
+          });
+        },
+      ))
+      ..loadRequest(Uri.parse(embedUrl));
+
+    if (mounted) setState(() => _videoController = controller);
+  }
+
+  String? _buildYoutubeEmbedUrl(String url) {
+    String? videoId;
+    if (url.contains('youtu.be/')) {
+      videoId = url.split('youtu.be/')[1].split('?')[0];
+    } else if (url.contains('youtube.com/watch')) {
+      videoId = Uri.parse(url).queryParameters['v'];
+    } else if (url.contains('youtube.com/embed/')) {
+      videoId = url.split('youtube.com/embed/')[1].split('?')[0];
+    }
+    if (videoId == null || videoId.isEmpty) return null;
+    return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&controls=1';
+  }
+
+  // --- PDF ---
   String _buildPdfDownloadUrl(String originalUrl) {
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
     if (match != null) {
@@ -73,7 +132,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return originalUrl;
   }
 
-  // Kesh fayl yo'li
   Future<File> _getCacheFile(String url) async {
     final dir = await getTemporaryDirectory();
     final match = RegExp(r'[-\w]{25,}').firstMatch(url);
@@ -99,38 +157,29 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     final cacheFile = await _getCacheFile(data.pdfUrl);
 
     try {
-      // 1. Keshdan ochishga urinish
-      if (await cacheFile.exists()) {
-        final size = await cacheFile.length();
-        if (size > 1024) { // 1KB dan katta bo'lsa haqiqiy PDF
-          try {
-            final controller = PdfController(
-              document: PdfDocument.openFile(cacheFile.path),
-            );
-            if (mounted) {
-              setState(() {
-                _pdfController?.dispose();
-                _pdfController = controller;
-                _isLoading = false;
-              });
-            }
-            // Fon rejimida yangilash
-            if (_isOnline) _downloadPdfToCache(downloadUrl, cacheFile);
-            return;
-          } catch (_) {
-            // Kesh fayli buzilgan — o'chirib qayta yuklaymiz
-            await cacheFile.delete();
+      // 1. Keshdan ochish
+      if (await cacheFile.exists() && await cacheFile.length() > 1024) {
+        try {
+          final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
+          if (mounted) {
+            setState(() {
+              _pdfController?.dispose();
+              _pdfController = controller;
+              _isLoading = false;
+            });
           }
+          if (_isOnline) _downloadPdfToCache(downloadUrl, cacheFile);
+          return;
+        } catch (_) {
+          await cacheFile.delete();
         }
       }
 
-      // 2. Online bo'lsa yuklab ol
+      // 2. Yuklab olish
       if (_isOnline) {
         await _downloadPdfToCache(downloadUrl, cacheFile);
         if (await cacheFile.exists() && await cacheFile.length() > 1024) {
-          final controller = PdfController(
-            document: PdfDocument.openFile(cacheFile.path),
-          );
+          final controller = PdfController(document: PdfDocument.openFile(cacheFile.path));
           if (mounted) {
             setState(() {
               _pdfController?.dispose();
@@ -147,76 +196,32 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         setState(() {
           _isLoading = false;
           _errorMessage = _isOnline
-              ? 'PDF yuklab bo\'lib bo\'lmadi.\nQayta urinib ko\'ring.'
-              : 'Offline rejim: PDF keshda mavjud emas.\nInternetga ulanib bir marta oching.';
+              ? 'PDF yuklab bo\'lib bo\'lmadi. Qayta urinib ko\'ring.'
+              : 'Offline rejim: PDF keshda yo\'q.\nInternetga ulanib bir marta oching.';
         });
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'PDF ochishda xatolik.\nQayta urinib ko\'ring.';
-        });
-      }
+    } catch (_) {
+      if (mounted) setState(() { _isLoading = false; _errorMessage = 'PDF ochishda xatolik.'; });
     }
   }
 
   Future<void> _downloadPdfToCache(String url, File cacheFile) async {
     try {
-      final response = await http.get(Uri.parse(url))
-          .timeout(const Duration(seconds: 30));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200 && response.bodyBytes.length > 1024) {
         await cacheFile.writeAsBytes(response.bodyBytes);
       }
     } catch (_) {}
   }
 
-  Future<void> _initYoutube() async {
-    if (_isWeb) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-
-    final data = ref.read(moduleDataProvider);
-    if (data == null || data.videoUrl.isEmpty) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Video manzili kiritilmagan'; });
-      return;
-    }
-
-    final videoId = YoutubePlayer.convertUrlToId(data.videoUrl);
-    if (videoId == null) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Noto\'g\'ri YouTube URL'; });
-      return;
-    }
-
-    final controller = YoutubePlayerController(
-      initialVideoId: videoId,
-      flags: const YoutubePlayerFlags(
-        autoPlay: false,
-        mute: false,
-        enableCaption: false,
-      ),
-    );
-
-    if (mounted) {
-      setState(() {
-        _ytController?.dispose();
-        _ytController = controller;
-        _isLoading = false;
-      });
-    }
-  }
-
   void _toggleFullScreen() {
     final isFullScreen = ref.read(isFullScreenProvider);
     ref.read(isFullScreenProvider.notifier).state = !isFullScreen;
     if (!isFullScreen) {
-      if (widget.type == 'video') {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-      }
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     } else {
       SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -224,11 +229,19 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
   }
 
-  String _getIframeUrl(String originalUrl, bool isVideo) {
-    if (isVideo) {
-      final vidId = YoutubePlayer.convertUrlToId(originalUrl) ?? '';
-      return 'https://www.youtube.com/embed/$vidId?modestbranding=1&rel=0&controls=1&fs=0';
+  void _togglePdfRotate() {
+    setState(() => _isPdfLandscape = !_isPdfLandscape);
+    if (_isPdfLandscape) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     }
+  }
+
+  String _getIframeUrl(String originalUrl) {
     final match = RegExp(r'[-\w]{25,}').firstMatch(originalUrl);
     if (match != null) {
       return 'https://docs.google.com/viewer?url=${Uri.encodeComponent('https://drive.google.com/uc?export=download&id=${match.group(0)}')}&embedded=true';
@@ -239,7 +252,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   @override
   void dispose() {
     _connectivitySubscription.cancel();
-    _ytController?.dispose();
     _pdfController?.dispose();
     if (_isWeb && widget.type == 'pdf') setWebZoomable(false);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -278,12 +290,24 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               ),
               if (!_isOnline)
                 const Padding(
-                  padding: EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(right: 4),
                   child: Icon(Icons.wifi_off, color: Colors.orange, size: 20),
                 ),
+              // PDF uchun rotate tugmasi
+              if (widget.type == 'pdf' && _pdfController != null) ...[
+                IconButton(
+                  onPressed: _togglePdfRotate,
+                  icon: Icon(
+                    _isPdfLandscape ? Icons.stay_primary_portrait : Icons.stay_primary_landscape,
+                    color: AppColors.primary,
+                  ),
+                  tooltip: 'Burish',
+                ),
+              ],
               IconButton(
                 onPressed: _toggleFullScreen,
                 icon: const Icon(Icons.fullscreen),
+                tooltip: 'To\'liq ekran',
               ),
               Icon(
                 widget.type == 'video' ? Icons.video_library : Icons.picture_as_pdf,
@@ -292,6 +316,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             ],
           ),
         ),
+        // PDF sahifa ko'rsatgich
+        if (widget.type == 'pdf' && _pdfController != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '$_pdfCurrentPage / $_pdfTotalPages',
+              style: const TextStyle(color: AppColors.textGray, fontSize: 12),
+            ),
+          ),
         Expanded(child: _buildMediaContent(url, data)),
       ],
     );
@@ -311,8 +344,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               bottom: 0, left: 0, right: 0,
               child: PointerInterceptor(
                 child: Container(
-                  height: 60,
-                  color: Colors.black.withOpacity(0.9),
+                  height: 50,
+                  color: Colors.black.withOpacity(0.85),
                   child: const Center(
                     child: Text('Xavfsiz Ko\'rish Rejimi',
                         style: TextStyle(color: Colors.white54, fontSize: 10)),
@@ -341,14 +374,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   Widget _buildMediaContent(String url, dynamic data) {
     // Yuklanish
-    if (_isLoading) {
+    if (_isLoading && widget.type == 'pdf') {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(color: AppColors.accent),
             SizedBox(height: 12),
-            Text('Yuklanmoqda...', style: TextStyle(color: AppColors.textGray)),
+            Text('PDF yuklanmoqda...', style: TextStyle(color: AppColors.textGray)),
           ],
         ),
       );
@@ -376,7 +409,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 onPressed: () {
                   setState(() { _isLoading = true; _errorMessage = null; });
                   if (widget.type == 'pdf') _initPdf();
-                  else _initYoutube();
+                  else _initVideo();
                 },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Qayta urinish'),
@@ -388,17 +421,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // VIDEO
+    // VIDEO — WebView (ham mobile, ham web)
     if (widget.type == 'video') {
       if (_isWeb) {
-        return buildWebIframe(_getIframeUrl(url, true), true,
-            key: ValueKey('vid_${data.artikul}'));
+        final embedUrl = _buildYoutubeEmbedUrl(url) ?? url;
+        return buildWebIframe(embedUrl, true, key: ValueKey('vid_${data.artikul}'));
       }
-      if (_ytController != null) {
-        return YoutubePlayer(
-          controller: _ytController!,
-          showVideoProgressIndicator: true,
-          progressIndicatorColor: AppColors.accent,
+      // Mobile WebView
+      if (_videoController != null) {
+        return Stack(
+          children: [
+            WebViewWidget(controller: _videoController!),
+            if (_isLoading)
+              const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+          ],
         );
       }
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
@@ -409,11 +445,17 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return PdfView(
         controller: _pdfController!,
         scrollDirection: Axis.vertical,
+        onDocumentLoaded: (document) {
+          if (mounted) setState(() => _pdfTotalPages = document.pagesCount);
+        },
+        onPageChanged: (page) {
+          if (mounted) setState(() => _pdfCurrentPage = page);
+        },
       );
     }
 
-    // PDF — Web yoki fallback
-    return buildWebIframe(_getIframeUrl(url, false), false,
+    // PDF — Web fallback
+    return buildWebIframe(_getIframeUrl(url), false,
         key: ValueKey('pdf_${data.artikul}'));
   }
 }
