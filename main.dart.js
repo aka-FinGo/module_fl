@@ -42984,7 +42984,7 @@ q=r?B.Dv:B.mj
 q=A.rA(q,r?B.eI:B.jd,l,48)
 s=A.f2(s,B.PR,B.cQ)
 p=A.aH1(l,l,B.ap,l,l,l,l,l,l,l,l,l,l,l,l,l,l,l,l,l)
-return A.j8(new A.ca(B.id,A.lN(A.c([q,B.MX,s,B.xq,new A.I1(!0,new A.akZ(m),l,l,l,p,B.t,l,!1,l,l,new A.PW(B.Sb,B.DR,p,l,l),l)],t.p),B.a0,B.fd,B.a9),l),l,l)}if(m.a.d==="video"){if(B.c.t(a,"youtu.be")||B.c.t(a,"youtube.com"))o="https://www.youtube.com/embed/"+A.aPm(a)+"?autoplay=0&rel=0&modestbranding=1&controls=1"
+return A.j8(new A.ca(B.id,A.lN(A.c([q,B.MX,s,B.xq,new A.I1(!0,new A.akZ(m),l,l,l,p,B.t,l,!1,l,l,new A.PW(B.Sb,B.DR,p,l,l),l)],t.p),B.a0,B.fd,B.a9),l),l,l)}if(m.a.d==="video"){if(B.c.t(a,"youtu.be")||B.c.t(a,"youtube.com"))o="https://www.youtube.com/embed/"+A.aPm(a)+"?rel=0&modestbranding=1&controls=1"
 else{n=A.aO1(a)
 o=n.length!==0?"https://drive.google.com/file/d/"+n+"/preview":a}return A.aAD(o,!0,new A.df("vid_"+b.a,t.kK))}s=A.aAD(a,!1,new A.df("pdf_"+b.a,t.kK))
 return s},
