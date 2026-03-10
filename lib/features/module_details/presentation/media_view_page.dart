@@ -9,14 +9,15 @@ import 'package:pdfx/pdfx.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../shell/presentation/shell_page.dart';
 import 'web_iframe_stub.dart' if (dart.library.html) 'web_iframe.dart';
 
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // HELPERS
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 
 String _driveId(String url) =>
     RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0) ?? '';
@@ -46,7 +47,6 @@ Future<File> _cacheFile(String url) async {
   return File('${dir.path}/${id.isNotEmpty ? 'pdf_$id.pdf' : 'pdf_cache.pdf'}');
 }
 
-/// Drive virus-scan bypass bilan PDF yuklab olish
 Future<bool> _downloadPdfFile(String url, File file) async {
   try {
     var res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 60));
@@ -79,107 +79,212 @@ Future<bool> _downloadPdfFile(String url, File file) async {
   return false;
 }
 
-/// YouTube custom player HTML (IFrame API + swipe + controls)
+// ═══════════════════════════════════════════════════════════════
+// YOUTUBE CUSTOM PLAYER HTML
+// Reference: custom_player.html + custom_player.js
+// Swipe-left/right = vaqt | Swipe-up/down = ovoz
+// Double-tap = ±10s | Single-tap = play/pause
+// ═══════════════════════════════════════════════════════════════
 String _ytHtml(String videoId) => '''<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;font-family:sans-serif}
 html,body{width:100%;height:100%;background:#000;overflow:hidden}
-#w{position:relative;width:100%;height:100%;user-select:none}
-#yt{width:100%;height:100%;pointer-events:none;border:none;display:block}
-#sh{position:absolute;top:0;left:0;width:100%;height:calc(100% - 52px);z-index:10;background:transparent;touch-action:none}
-#ind{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 20px;border-radius:10px;font:bold 20px sans-serif;opacity:0;transition:opacity .15s;z-index:20;pointer-events:none;text-align:center;white-space:nowrap}
-#ldr{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:38px;height:38px;border:3px solid rgba(255,255,255,.2);border-top-color:#27ae60;border-radius:50%;animation:sp .8s linear infinite;z-index:5}
-@keyframes sp{to{transform:translate(-50%,-50%) rotate(360deg)}}
-#bar{position:absolute;bottom:0;left:0;right:0;height:52px;background:rgba(12,12,12,.97);display:flex;align-items:center;padding:0 8px;gap:6px;z-index:30}
-.cb{background:none;border:none;color:#fff;font-size:17px;cursor:pointer;padding:5px 6px;outline:none;flex-shrink:0}.cb:active{color:#27ae60}
-#sk{flex:1;cursor:pointer;accent-color:#27ae60;height:4px}
-#tm{color:#ccc;font-size:11px;font-weight:bold;min-width:90px;text-align:center;font-variant-numeric:tabular-nums;flex-shrink:0}
-#mn{position:absolute;bottom:58px;right:8px;background:rgba(12,12,12,.97);color:#fff;padding:12px;border-radius:8px;z-index:40;display:none;min-width:155px;box-shadow:0 4px 12px rgba(0,0,0,.7)}
-.sr{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.sr:last-child{margin-bottom:0}
-.sr label{font-size:12px}.sr select{background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:3px 5px;outline:none;font-size:11px}
-</style></head><body>
-<div id="w">
-  <div id="ldr"></div><div id="yt"></div><div id="sh"></div><div id="ind"></div>
-  <div id="mn">
-    <div class="sr"><label>Tezlik</label>
-      <select id="spd" onchange="setSp(this.value)">
-        <option value=".5">.5x</option><option value=".75">.75x</option>
+#video-container{position:relative;width:100%;height:100%;background:#000;user-select:none}
+#yt-player{width:100%;height:100%;pointer-events:none;border:none;display:block}
+#absolute-shield{position:absolute;top:0;left:0;width:100%;height:calc(100% - 50px);z-index:10;background:transparent;touch-action:none;cursor:pointer}
+#tap-indicator{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:white;padding:15px 25px;border-radius:10px;font-size:22px;font-weight:bold;opacity:0;transition:opacity 0.2s;z-index:15;pointer-events:none;text-align:center}
+#loader{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border:3px solid rgba(255,255,255,0.2);border-top-color:#27ae60;border-radius:50%;animation:spin 0.8s linear infinite;z-index:5}
+@keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
+#custom-controls{position:absolute;bottom:0;left:0;width:100%;height:50px;background:rgba(20,20,20,0.95);display:flex;align-items:center;padding:0 10px;z-index:20;gap:10px}
+.control-btn{background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:5px;outline:none;transition:color 0.2s;flex-shrink:0}
+.control-btn:active{color:#27ae60}
+#seek-bar{flex:1;cursor:pointer;accent-color:#27ae60;height:5px}
+#time-display{color:white;font-size:13px;font-weight:bold;min-width:90px;text-align:center;font-variant-numeric:tabular-nums;flex-shrink:0}
+#settings-menu{position:absolute;bottom:60px;right:10px;background:rgba(20,20,20,0.95);color:white;padding:15px;border-radius:8px;z-index:25;display:none;min-width:180px;box-shadow:0 5px 15px rgba(0,0,0,0.5)}
+.settings-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+.settings-row:last-child{margin-bottom:0}
+.settings-row label{font-size:13px}
+.settings-row select{background:#333;color:white;border:1px solid #555;border-radius:4px;padding:5px;outline:none;font-size:12px}
+</style></head>
+<body>
+<div id="video-container">
+  <div id="loader"></div>
+  <div id="yt-player"></div>
+  <div id="absolute-shield"></div>
+  <div id="tap-indicator"></div>
+  <div id="settings-menu">
+    <div class="settings-row"><label>Tezlik:</label>
+      <select id="speed-select" onchange="changeSpeed(this.value)">
+        <option value="0.5">0.5x</option><option value="0.75">0.75x</option>
         <option value="1" selected>Normal</option><option value="1.25">1.25x</option>
         <option value="1.5">1.5x</option><option value="2">2x</option></select></div>
-    <div class="sr"><label>Sifat</label>
-      <select id="ql" onchange="setQl(this.value)"><option value="default">Avto</option></select></div>
+    <div class="settings-row"><label>Sifat:</label>
+      <select id="quality-select" onchange="changeQuality(this.value)"><option value="default">Avto</option></select></div>
   </div>
-  <div id="bar">
-    <button class="cb" id="ppb" onclick="togPlay()">&#9654;</button>
-    <input type="range" id="sk" value="0" step=".1" oninput="onSi()" onchange="onSc()">
-    <span id="tm">0:00 / 0:00</span>
-    <button class="cb" onclick="togMn()">&#9881;</button>
+  <div id="custom-controls">
+    <button id="play-pause-btn" class="control-btn" onclick="togglePlayPause()">&#9654;</button>
+    <input type="range" id="seek-bar" value="0" step="0.1">
+    <span id="time-display">0:00 / 0:00</span>
+    <button class="control-btn" onclick="toggleSettings()">&#9881;</button>
   </div>
 </div>
 <script>
-var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);
-var P,tk,dr=false;
-function onYouTubeIframeAPIReady(){
-  P=new YT.Player('yt',{videoId:'$videoId',height:'100%',width:'100%',
-    playerVars:{controls:0,disablekb:1,rel:0,modestbranding:1,playsinline:1,iv_load_policy:3,fs:0,autoplay:1},
-    events:{
-      onReady:function(e){document.getElementById('ldr').style.display='none';e.target.playVideo();stTk();fillQl();},
-      onStateChange:function(e){document.getElementById('ppb').innerHTML=e.data===1?'&#9646;&#9646;':'&#9654;';e.data===1?stTk():clTk();}
-    }});}
-function fmt(s){s=Math.max(0,Math.floor(s));return Math.floor(s/60)+':'+(s%60<10?'0':'')+s%60}
-function stTk(){clearInterval(tk);tk=setInterval(function(){
-  if(!P||dr||sw)return;var c=P.getCurrentTime()||0,t=P.getDuration()||0;
-  document.getElementById('tm').textContent=fmt(c)+' / '+fmt(t);
-  if(t>0){var k=document.getElementById('sk');k.max=t;k.value=c;}},400);}
-function clTk(){clearInterval(tk);}
-function togPlay(){if(!P)return;P.getPlayerState()===1?P.pauseVideo():P.playVideo();hidMn();}
-function onSi(){dr=true;var k=document.getElementById('sk');document.getElementById('tm').textContent=fmt(k.value)+' / '+fmt(P?P.getDuration():0);}
-function onSc(){if(P)P.seekTo(document.getElementById('sk').value,true);dr=false;}
-function togMn(){var m=document.getElementById('mn');m.style.display=m.style.display==='block'?'none':'block';}
-function hidMn(){document.getElementById('mn').style.display='none';}
-function setSp(v){if(P)P.setPlaybackRate(parseFloat(v));}
-function fillQl(){if(!P||!P.getAvailableQualityLevels)return;
-  var lv=P.getAvailableQualityLevels();if(!lv||!lv.length)return;
-  var mp={highres:'4K',hd1440:'1440p',hd1080:'1080p',hd720:'720p',large:'480p',medium:'360p',small:'240p',tiny:'144p'};
-  var q=document.getElementById('ql');q.innerHTML='<option value="default">Avto</option>';
-  lv.forEach(function(l){var o=document.createElement('option');o.value=l;o.text=mp[l]||l;q.appendChild(o);});}
-function setQl(v){if(P)P.setPlaybackQuality(v);}
-var sw=false,dir=null,sx=0,sy=0,st=0,sv=0,lt=0,tt=null;
-var sh=document.getElementById('sh');
-sh.addEventListener('pointerdown',function(e){
-  if(!P)return;sh.setPointerCapture(e.pointerId);sw=false;dir=null;
-  sx=e.clientX;sy=e.clientY;st=P.getCurrentTime();sv=P.getVolume();hidMn();});
-sh.addEventListener('pointermove',function(e){
-  if(!P||sx===0)return;if(e.buttons===0&&e.pointerType==='mouse')return;
-  var dx=e.clientX-sx,dy=e.clientY-sy;
-  if(!dir){if(Math.abs(dx)>12&&Math.abs(dx)>Math.abs(dy))dir='h';
-    else if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx))dir='v';}
-  if(dir==='h'){sw=true;
-    var nt=Math.max(0,Math.min(P.getDuration(),st+(dx/(sh.clientWidth*.5))*60));
-    document.getElementById('sk').value=nt;
-    document.getElementById('tm').textContent=fmt(nt)+' / '+fmt(P.getDuration());
-    showI(dx>0?'\u23E9 '+fmt(nt):'\u23EA '+fmt(nt));
-  }else if(dir==='v'){sw=true;
-    var nv=Math.max(0,Math.min(100,sv-(dy/(sh.clientHeight*.5))*100));
-    P.setVolume(nv);nv===0?P.mute():P.unMute();
-    showI(nv===0?'\uD83D\uDD07 ':'\uD83D\uDD0A '+Math.round(nv)+'%');}});
-sh.addEventListener('pointerup',function(e){
-  if(sx===0)return;var was=sw,d=dir;sx=0;sy=0;sw=false;dir=null;
-  if(was){if(d==='h')P.seekTo(document.getElementById('sk').value,true);hideI();return;}
-  var now=Date.now(),rect=sh.getBoundingClientRect(),right=e.clientX>rect.left+rect.width/2;
-  if(now-lt<300&&now-lt>0){clearTimeout(tt);P.seekTo(Math.max(0,P.getCurrentTime()+(right?10:-10)),true);
-    showI(right?'\u23E9 +10s':'\u23EA -10s');setTimeout(hideI,700);lt=0;
-  }else{lt=now;tt=setTimeout(togPlay,280);}});
-function showI(t){var e=document.getElementById('ind');e.textContent=t;e.style.opacity='1';}
-function hideI(){document.getElementById('ind').style.opacity='0';}
-</script></body></html>''';
+// YouTube IFrame API yuklash
+var tag=document.createElement('script');
+tag.src="https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
 
-// ═══════════════════════════════════════════════════════════════════
+var player,updater,isDraggingBar=false;
+var clickTimer=null,lastClickTime=0;
+var isSwiping=false,swipeDirection=null;
+var startX=0,startY=0,startVideoTime=0,startVolume=0;
+
+function onYouTubeIframeAPIReady(){
+  player=new YT.Player('yt-player',{
+    height:'100%',width:'100%',videoId:'$videoId',
+    playerVars:{controls:0,disablekb:1,rel:0,modestbranding:1,playsinline:1,iv_load_policy:3,fs:0},
+    events:{onReady:onPlayerReady,onStateChange:onPlayerStateChange}
+  });
+}
+
+function onPlayerReady(event){
+  document.getElementById('loader').style.display='none';
+  event.target.playVideo();
+  updateTime();
+  populateQualities();
+}
+
+function onPlayerStateChange(event){
+  var btn=document.getElementById('play-pause-btn');
+  if(event.data===YT.PlayerState.PLAYING){
+    btn.innerHTML='&#9646;&#9646;';
+    updater=setInterval(updateTime,500);
+  }else{
+    btn.innerHTML='&#9654;';
+    clearInterval(updater);
+  }
+}
+
+function togglePlayPause(){
+  if(!player||typeof player.getPlayerState!=='function')return;
+  if(player.getPlayerState()===YT.PlayerState.PLAYING)player.pauseVideo();
+  else player.playVideo();
+}
+
+function formatTime(sec){
+  var m=Math.floor(sec/60),s=Math.floor(sec%60);
+  return m+':'+(s<10?'0':'')+s;
+}
+
+function updateTime(){
+  if(!player||isDraggingBar||isSwiping)return;
+  var current=player.getCurrentTime()||0,total=player.getDuration()||0;
+  document.getElementById('time-display').innerText=formatTime(current)+' / '+formatTime(total);
+  if(total>0){var sb=document.getElementById('seek-bar');sb.max=total;sb.value=current;}
+}
+
+var seekBar=document.getElementById('seek-bar');
+seekBar.addEventListener('input',function(){
+  isDraggingBar=true;
+  document.getElementById('time-display').innerText=formatTime(this.value)+' / '+formatTime(player?player.getDuration():0);
+});
+seekBar.addEventListener('change',function(){
+  if(player)player.seekTo(this.value,true);
+  isDraggingBar=false;
+});
+
+// AQLLI PARDA: gorizontal=vaqt, vertikal=ovoz
+var shield=document.getElementById('absolute-shield');
+
+shield.addEventListener('pointerdown',function(e){
+  if(!player)return;
+  isSwiping=false;swipeDirection=null;
+  startX=e.clientX;startY=e.clientY;
+  startVideoTime=player.getCurrentTime();startVolume=player.getVolume();
+  shield.setPointerCapture(e.pointerId);
+});
+
+shield.addEventListener('pointermove',function(e){
+  if(e.buttons!==1&&e.pointerType==='mouse')return;
+  if(!player||startX===0||startY===0)return;
+  var dx=e.clientX-startX,dy=e.clientY-startY;
+  if(!swipeDirection){
+    if(Math.abs(dx)>15&&Math.abs(dx)>Math.abs(dy))swipeDirection='horizontal';
+    else if(Math.abs(dy)>15&&Math.abs(dy)>Math.abs(dx))swipeDirection='vertical';
+  }
+  if(swipeDirection==='horizontal'){
+    isSwiping=true;
+    var seekOffset=(dx/(shield.clientWidth/2))*60;
+    var newTime=Math.max(0,Math.min(player.getDuration(),startVideoTime+seekOffset));
+    seekBar.value=newTime;
+    document.getElementById('time-display').innerText=formatTime(newTime)+' / '+formatTime(player.getDuration());
+    showIndicator((seekOffset>0?'>> ':'<< ')+formatTime(newTime));
+  }else if(swipeDirection==='vertical'){
+    isSwiping=true;
+    var volOffset=-(dy/(shield.clientHeight/2))*100;
+    var newVol=Math.max(0,Math.min(100,startVolume+volOffset));
+    player.setVolume(newVol);
+    if(newVol===0)player.mute();else player.unMute();
+    showIndicator((newVol===0?'[X] ':'+  ')+Math.round(newVol)+'%');
+  }
+});
+
+shield.addEventListener('pointerup',function(e){
+  if(startX===0)return;
+  startX=0;startY=0;
+  if(isSwiping){
+    if(swipeDirection==='horizontal')player.seekTo(seekBar.value,true);
+    isSwiping=false;swipeDirection=null;
+    hideIndicator();return;
+  }
+  var now=Date.now(),diff=now-lastClickTime;
+  var rect=shield.getBoundingClientRect(),isRight=e.clientX>(rect.left+rect.width/2);
+  if(diff<300&&diff>0){
+    clearTimeout(clickTimer);
+    var newT=player.getCurrentTime()+(isRight?10:-10);
+    player.seekTo(Math.max(0,newT),true);
+    showIndicator(isRight?'>> +10s':'<< -10s');
+    setTimeout(hideIndicator,700);lastClickTime=0;
+  }else{
+    lastClickTime=now;
+    clickTimer=setTimeout(function(){
+      togglePlayPause();
+      document.getElementById('settings-menu').style.display='none';
+    },300);
+  }
+});
+
+function showIndicator(text){
+  var ind=document.getElementById('tap-indicator');
+  ind.innerText=text;ind.style.opacity='1';
+}
+function hideIndicator(){document.getElementById('tap-indicator').style.opacity='0';}
+
+function toggleSettings(){
+  var m=document.getElementById('settings-menu');
+  m.style.display=m.style.display==='block'?'none':'block';
+}
+function changeSpeed(r){if(player)player.setPlaybackRate(parseFloat(r));}
+function populateQualities(){
+  var q=document.getElementById('quality-select');
+  if(!player||typeof player.getAvailableQualityLevels!=='function')return;
+  var levels=player.getAvailableQualityLevels();
+  if(levels&&levels.length>0){
+    q.innerHTML='';
+    var mp={highres:'4K',hd1440:'1440p',hd1080:'1080p',hd720:'720p',large:'480p',medium:'360p',small:'240p',tiny:'144p'};
+    levels.forEach(function(l){var o=document.createElement('option');o.value=l;o.text=mp[l]||l;q.appendChild(o);});
+  }
+}
+function changeQuality(q){if(player)player.setPlaybackQuality(q);}
+</script>
+</body></html>''';
+
+// ═══════════════════════════════════════════════════════════════
 // MAIN PAGE
-// ═══════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 
 class MediaViewPage extends ConsumerStatefulWidget {
   final String type;
@@ -231,7 +336,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     widget.type == 'pdf' ? await _initPdf() : await _initVideo();
   }
 
-  // ─── VIDEO ─────────────────────────────────────────────────────
+  // ─── WebViewController yaratish (autoplay ruxsati bilan) ─────
+  WebViewController _newController() {
+    final ctrl = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black);
+    // Android: media autoplay uchun user gesture talab qilinmasin
+    if (ctrl.platform is AndroidWebViewController) {
+      (ctrl.platform as AndroidWebViewController)
+          .setMediaPlaybackRequiresUserGesture(false);
+    }
+    return ctrl;
+  }
+
+  // ─── VIDEO ────────────────────────────────────────────────────
   Future<void> _initVideo() async {
     if (_isWeb) { if (mounted) setState(() => _isLoading = false); return; }
     final url = ref.read(moduleDataProvider)?.videoUrl ?? '';
@@ -239,13 +357,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       if (mounted) setState(() { _isLoading = false; _error = 'Video manzili kiritilmagan'; });
       return;
     }
-    final ctrl = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.black)
+
+    final ctrl = _newController()
       ..setNavigationDelegate(NavigationDelegate(
         onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
-        onWebResourceError: (_) {
-          if (mounted) setState(() { _isLoading = false; _error = 'Video yuklanmadi.'; });
+        // MUHIM: faqat asosiy frame xatosida error ko'rsatamiz
+        // (YouTube API, reklama resurslari xatosi uchun EMAS)
+        onWebResourceError: (err) {
+          if ((err.isForMainFrame ?? false) && mounted) {
+            setState(() { _isLoading = false; _error = 'Video yuklanmadi.'; });
+          }
         },
       ));
 
@@ -255,14 +376,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         if (mounted) setState(() { _isLoading = false; _error = 'YouTube ID topilmadi'; });
         return;
       }
+      // Custom player: loadHtmlString + baseUrl=youtube.com (IFrame API uchun)
       ctrl.loadHtmlString(_ytHtml(id), baseUrl: 'https://www.youtube.com');
     } else {
+      // Drive video: /preview
       ctrl.loadRequest(Uri.parse(_previewUrl(url)));
     }
     if (mounted) setState(() => _videoWeb = ctrl);
   }
 
-  // ─── PDF ───────────────────────────────────────────────────────
+  // ─── PDF ──────────────────────────────────────────────────────
   Future<void> _initPdf() async {
     if (_isWeb) { if (mounted) setState(() => _isLoading = false); return; }
     final url = ref.read(moduleDataProvider)?.pdfUrl ?? '';
@@ -270,7 +393,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       if (mounted) setState(() { _isLoading = false; _error = 'PDF manzili kiritilmagan'; });
       return;
     }
-    // 1. Cache → pdfx (darhol)
+    // 1. Cache → pdfx
     final cf = await _cacheFile(url);
     if (await cf.exists() && await cf.length() > 1024) {
       try {
@@ -280,20 +403,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         return;
       } catch (_) { await cf.delete(); }
     }
-    // 2. Cache yo'q → WebView /preview (darhol ko'rinadi)
+    // 2. WebView /preview (darhol)
     _initPdfWebView(url);
-    // 3. Fonda yuklab olish
     if (_isOnline) _tryDownload();
   }
 
   void _initPdfWebView(String url) {
-    final c = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    final c = _newController()
       ..setBackgroundColor(const Color(0xFF525659))
       ..setNavigationDelegate(NavigationDelegate(
         onPageFinished: (_) { if (mounted && !_isPdfNative) setState(() => _isLoading = false); },
-        onWebResourceError: (_) {
-          if (mounted && !_isPdfNative) setState(() { _isLoading = false; _error = 'PDF yuklanmadi.'; });
+        onWebResourceError: (err) {
+          if ((err.isForMainFrame ?? false) && mounted && !_isPdfNative) {
+            setState(() { _isLoading = false; _error = 'PDF yuklanmadi.'; });
+          }
         },
       ))
       ..loadRequest(Uri.parse(_previewUrl(url)));
@@ -308,7 +431,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (!ok || !mounted) return;
     try {
       final c = PdfController(document: PdfDocument.openFile(file.path));
-      if (mounted) setState(() { _pdfCtrl?.dispose(); _pdfCtrl = c; _isPdfNative = true; _pdfWeb = null; });
+      if (mounted) setState(() {
+        _pdfCtrl?.dispose(); _pdfCtrl = c; _isPdfNative = true; _pdfWeb = null;
+      });
     } catch (_) {}
   }
 
@@ -426,56 +551,56 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     // ── VIDEO ──────────────────────────────────────────────────
     if (widget.type == 'video') {
       if (_isWeb) {
-        final embedUrl = _isYt(url)
-            ? 'https://www.youtube.com/embed/${_ytId(url)}?autoplay=0&rel=0&modestbranding=1&controls=1'
+        final embed = _isYt(url)
+            ? 'https://www.youtube.com/embed/${_ytId(url)}?rel=0&modestbranding=1&controls=1'
             : _previewUrl(url);
-        return buildWebIframe(embedUrl, true, key: ValueKey('vid_${data.artikul}'));
+        return buildWebIframe(embed, true, key: ValueKey('vid_${data.artikul}'));
       }
       if (_videoWeb != null) return _buildVideoStack(url);
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
     // ── PDF ────────────────────────────────────────────────────
-    // Web: Drive /preview iframe (GitHub Pages)
     if (_isWeb) return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
-    // Mobile: pdfx (cache)
     if (_isPdfNative && _pdfCtrl != null) {
-      return PdfView(
-          controller: _pdfCtrl!, scrollDirection: Axis.vertical,
+      return PdfView(controller: _pdfCtrl!, scrollDirection: Axis.vertical,
           onDocumentLoaded: (d) { if (mounted) setState(() => _pdfTotal = d.pagesCount); },
           onPageChanged: (p) { if (mounted) setState(() => _pdfPage = p); });
     }
-    // Mobile: WebView /preview — o'ng-tepa parda bilan
     if (_pdfWeb != null) return _buildPdfWebStack();
     return const Center(child: CircularProgressIndicator(color: AppColors.accent));
   }
 
-  /// Drive/YouTube video steki — o'ng-tepa + pastki pardalar
+  // ─── VIDEO STACK: o'ng-tepa + pastki pardalar ─────────────────
   Widget _buildVideoStack(String url) {
     final isDrive = _isDrive(url);
     return Stack(children: [
       WebViewWidget(controller: _videoWeb!),
+      // O'ng-tepa: "Tashqarida ochish" / YouTube logo bloklash
       Positioned(top: 0, right: 0,
           child: PointerInterceptor(
-              child: Container(width: 70, height: 70, color: Colors.transparent))),
+              child: Container(width: 80, height: 80, color: Colors.transparent))),
+      // Drive pastki bar
       if (isDrive)
         Positioned(bottom: 0, left: 0, right: 0,
             child: PointerInterceptor(
-                child: Container(height: 44, color: Colors.transparent))),
+                child: Container(height: 50, color: Colors.transparent))),
+      // YouTube pastki-chap logo
       if (!isDrive)
         Positioned(bottom: 0, left: 0,
             child: PointerInterceptor(
-                child: Container(width: 160, height: 50, color: Colors.transparent))),
+                child: Container(width: 180, height: 55, color: Colors.transparent))),
     ]);
   }
 
-  /// PDF WebView — o'ng-tepa "Open with" tugmasini bloklash
+  // ─── PDF WebView STACK: o'ng-tepa "Open with" bloklash ────────
   Widget _buildPdfWebStack() {
     return Stack(children: [
       WebViewWidget(controller: _pdfWeb!),
+      // O'ng-tepa burchak: Drive PDF "Open with" / "Pop-out" tugmasi
       Positioned(top: 0, right: 0,
           child: PointerInterceptor(
-              child: Container(width: 65, height: 65, color: Colors.transparent))),
+              child: Container(width: 80, height: 80, color: Colors.transparent))),
     ]);
   }
 
