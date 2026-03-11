@@ -11,7 +11,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../providers/module_details_provider.dart';
+import '../../../data/repositories/api_repository.dart';
+import '../../shell/presentation/shell_page.dart';
 import 'media_pdf_helper.dart';
 import 'custom_youtube_html.dart';
 import 'web_iframe_stub.dart' if (dart.library.html) 'web_iframe.dart';
