@@ -41,36 +41,30 @@ html.Element _buildDriveIframeWrapper(String url) {
     ..style.height = '100%'
     ..allowFullscreen = true;
 
-  // Drive pastki bar bloklash
-  final bottomShield = html.DivElement()
-    ..style.position = 'absolute'
-    ..style.bottom = '0'
-    ..style.left = '0'
-    ..style.right = '0'
-    ..style.height = '44px'
-    ..style.zIndex = '999';
-
-  // Top-right "Drive'da ochish" tugmasini bloklash
+  // Top-right "Pop-out" tugmasini bloklash (Pagination va Zoom uchun pastki qism ochiq qoldi)
   final topRightShield = html.DivElement()
     ..style.position = 'absolute'
     ..style.top = '0'
     ..style.right = '0'
-    ..style.width = '70px'
-    ..style.height = '70px'
+    ..style.width = '80px'
+    ..style.height = '80px'
     ..style.zIndex = '999';
 
-  wrapper.children.addAll([iframe, bottomShield, topRightShield]);
+  wrapper.children.addAll([iframe, topRightShield]);
   return wrapper;
 }
 
 // PDF.js — Drive PDF uchun (Google Docs Viewer yo'q)
 html.Element _buildPdfWrapper(String url) {
-  // url bu yerga to'g'ridan-to'g'ri Drive share URL keladi.
-  // PDF.js CORS bloklaydi, shuning uchun Drive /preview iframe ishlatamiz.
   final id = RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0);
   final previewUrl = id != null
       ? 'https://drive.google.com/file/d/$id/preview'
       : url;
+
+  final wrapper = html.DivElement()
+    ..style.position = 'relative'
+    ..style.width = '100%'
+    ..style.height = '100%';
 
   final iframe = html.IFrameElement()
     ..src = previewUrl
@@ -79,7 +73,17 @@ html.Element _buildPdfWrapper(String url) {
     ..style.height = '100%'
     ..allowFullscreen = true;
 
-  return iframe;
+  // PDF Pop-out tugmasini to'sish (Zoom va Pagination ishlashi uchun pastki qism ochiq)
+  final topRightShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.top = '0'
+    ..style.right = '0'
+    ..style.width = '80px'
+    ..style.height = '80px'
+    ..style.zIndex = '999';
+
+  wrapper.children.addAll([iframe, topRightShield]);
+  return wrapper;
 }
 
 // YouTube iframe — shieldlar bilan

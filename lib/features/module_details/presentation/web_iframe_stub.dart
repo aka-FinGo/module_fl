@@ -2,7 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
-  return _MobileWebView(url: url, key: key);
+  return Stack(
+    key: key,
+    children: [
+      _MobileWebView(url: url),
+      // Top-right shield for "Pop-out" (80x80 is enough)
+      Positioned(
+        top: 0,
+        right: 0,
+        child: Container(
+          width: 80,
+          height: 80,
+          color: Colors.transparent,
+        ),
+      ),
+    ],
+  );
 }
 
 class _MobileWebView extends StatefulWidget {
