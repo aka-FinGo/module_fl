@@ -2,100 +2,135 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:flutter/material.dart';
 
+bool _isYoutubeEmbed(String url) => url.contains('youtube.com/embed');
+bool _isDrivePreview(String url) => url.contains('drive.google.com');
+
 Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
-  final String viewType = 'iframe-view-${url.hashCode}';
+  final String viewType = 'media-${url.hashCode}';
 
   try {
     ui.platformViewRegistry.registerViewFactory(viewType, (int viewId) {
-      final html.DivElement wrapper = html.DivElement()
-        ..style.position = 'relative'
-        ..style.width = '100%'
-        ..style.height = '100%';
-
-      final html.IFrameElement iframe = html.IFrameElement()
-        ..src = url
-        ..style.border = 'none'
-        ..style.height = '100%'
-        ..style.width = '100%'
-        ..style.position = 'absolute'
-        ..style.top = '0'
-        ..style.left = '0'
-        ..allowFullscreen = true;
-
       if (isVideo) {
-        // Top-left: Block video title - but only partially to leave room for Flutter's X button
-        final html.DivElement topLeftShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.top = '0'
-          ..style.left = '60px' // Leave space for X button
-          ..style.height = '60px'
-          ..style.width = '60%'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        // Bottom-left: Block Share and Watch Later buttons
-        final html.DivElement bottomLeftShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.bottom = '0'
-          ..style.left = '0'
-          ..style.width = '160px'
-          ..style.height = '75px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        // Bottom-right: Block YouTube logo
-        final html.DivElement bottomRightShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.bottom = '0'
-          ..style.right = '0'
-          ..style.width = '100px'
-          ..style.height = '50px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        wrapper.children.addAll(
-            [iframe, topLeftShield, bottomLeftShield, bottomRightShield]);
+        if (_isYoutubeEmbed(url)) {
+          return _buildYoutubeWrapper(url);
+        } else {
+          // Drive video: iframe /preview (HTML5 <video> CORS bloklanadi)
+          return _buildDriveIframeWrapper(url);
+        }
       } else {
-        // PDF: Only block top-right pop-out button
-        // Google Drive native controls are usually at the bottom or middle,
-        // the pop-out is top-right.
-        final html.DivElement topRightShield = html.DivElement()
-          ..style.position = 'absolute'
-          ..style.top = '0'
-          ..style.right = '0'
-          ..style.width = '80px'
-          ..style.height = '65px'
-          ..style.backgroundColor = 'transparent'
-          ..style.zIndex = '999';
-
-        wrapper.style.backgroundColor = 'white';
-        wrapper.children.addAll([iframe, topRightShield]);
+        return _buildPdfWrapper(url);
       }
-      return wrapper;
     });
-  } catch (e) {
-    // Already registered is fine
-  }
+  } catch (e) {}
 
-  return HtmlElementView(
-    key: key,
-    viewType: viewType,
-  );
+  return HtmlElementView(key: key, viewType: viewType);
+}
+
+// Drive video — iframe /preview
+html.Element _buildDriveIframeWrapper(String url) {
+  final wrapper = html.DivElement()
+    ..style.position = 'relative'
+    ..style.width = '100%'
+    ..style.height = '100%'
+    ..style.background = '#000';
+
+  final iframe = html.IFrameElement()
+    ..src = url
+    ..style.border = 'none'
+    ..style.width = '100%'
+    ..style.height = '100%'
+    ..allowFullscreen = true;
+
+  // Drive pastki bar bloklash
+  final bottomShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.bottom = '0'
+    ..style.left = '0'
+    ..style.right = '0'
+    ..style.height = '44px'
+    ..style.zIndex = '999';
+
+  // Top-right "Drive'da ochish" tugmasini bloklash
+  final topRightShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.top = '0'
+    ..style.right = '0'
+    ..style.width = '70px'
+    ..style.height = '70px'
+    ..style.zIndex = '999';
+
+  wrapper.children.addAll([iframe, bottomShield, topRightShield]);
+  return wrapper;
+}
+
+// PDF.js — Drive PDF uchun (Google Docs Viewer yo'q)
+html.Element _buildPdfWrapper(String url) {
+  // url bu yerga to'g'ridan-to'g'ri Drive share URL keladi.
+  // PDF.js CORS bloklaydi, shuning uchun Drive /preview iframe ishlatamiz.
+  final id = RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0);
+  final previewUrl = id != null
+      ? 'https://drive.google.com/file/d/$id/preview'
+      : url;
+
+  final iframe = html.IFrameElement()
+    ..src = previewUrl
+    ..style.border = 'none'
+    ..style.width = '100%'
+    ..style.height = '100%'
+    ..allowFullscreen = true;
+
+  return iframe;
+}
+
+// YouTube iframe — shieldlar bilan
+html.Element _buildYoutubeWrapper(String url) {
+  final wrapper = html.DivElement()
+    ..style.position = 'relative'
+    ..style.width = '100%'
+    ..style.height = '100%';
+
+  final iframe = html.IFrameElement()
+    ..src = url
+    ..style.border = 'none'
+    ..style.width = '100%'
+    ..style.height = '100%'
+    ..allowFullscreen = true;
+
+  final topLeftShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.top = '0'
+    ..style.left = '60px'
+    ..style.height = '60px'
+    ..style.width = '60%'
+    ..style.zIndex = '999';
+
+  final bottomLeftShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.bottom = '0'
+    ..style.left = '0'
+    ..style.width = '160px'
+    ..style.height = '75px'
+    ..style.zIndex = '999';
+
+  final bottomRightShield = html.DivElement()
+    ..style.position = 'absolute'
+    ..style.bottom = '0'
+    ..style.right = '0'
+    ..style.width = '100px'
+    ..style.height = '50px'
+    ..style.zIndex = '999';
+
+  wrapper.children.addAll([iframe, topLeftShield, bottomLeftShield, bottomRightShield]);
+  return wrapper;
 }
 
 void setWebZoomable(bool isZoomable) {
   try {
     final meta = html.document.querySelector('meta[name="viewport"]');
     if (meta != null) {
-      if (isZoomable) {
-        meta.setAttribute('content',
-            'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes');
-      } else {
-        meta.setAttribute('content',
-            'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
-      }
+      meta.setAttribute('content', isZoomable
+          ? 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes'
+          : 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
     }
-  } catch (e) {
-    // Ignore
-  }
+  } catch (e) {}
 }

@@ -19,21 +19,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+
+      - name: Versiyani avtomatik oshirish (+1)
+        run: |
+          # pubspec.yaml dan joriy versiyani o'qish
+          CURRENT=$(grep '^version:' pubspec.yaml | sed 's/version: //')
+          VERSION_NAME=$(echo $CURRENT | cut -d'+' -f1)
+          VERSION_CODE=$(echo $CURRENT | cut -d'+' -f2)
           
+          # versionCode ni +1 oshirish
+          NEW_CODE=$((VERSION_CODE + 1))
+          NEW_VERSION="${VERSION_NAME}+${NEW_CODE}"
+          
+          # pubspec.yaml ni yangilash
+          sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+          
+          echo "Eski versiya: $CURRENT"
+          echo "Yangi versiya: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Versiyani repoga saqlash (commit)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore: version bump to ${{ env.NEW_VERSION }} [skip ci]"
+          git push
+
       - name: Install dependencies
         run: flutter pub get
-        
+
       - name: Build APK
         run: |
           if [ "${{ github.event.inputs.build_type }}" == "universal" ]; then
@@ -45,9 +71,9 @@ jobs:
           else
             flutter build apk --release --split-per-abi
           fi
-        
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.build_type }}-apk
+          name: "${{ env.NEW_VERSION }}-${{ github.event.inputs.build_type }}-apk"
           path: build/app/outputs/flutter-apk/*.apk
