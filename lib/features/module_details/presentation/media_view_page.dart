@@ -44,6 +44,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   // Video
   WebViewController? _videoWeb;
+  double? _dlProgress; // null = yuklanmayapti, 0.0-1.0
+  bool _dlDone = false;
 
   late final StreamSubscription<List<ConnectivityResult>> _conSub;
 
@@ -131,7 +133,46 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     final url = ref.read(moduleDataProvider)?.videoUrl ?? '';
     if (!_isDrive(url)) return;
     final file = await _getCacheFile(url, isVideo: true);
-    await MediaPdfHelper.downloadPdf(MediaPdfHelper.buildDriveDownloadUrl(url), file);
+    if (await file.exists() && await file.length() > 1024 * 1024) {
+      if (mounted) setState(() { _dlDone = true; _dlProgress = null; });
+      return;
+    }
+    try {
+      final dlUrl = MediaPdfHelper.buildDriveDownloadUrl(url);
+      final request = await HttpClient().getUrl(Uri.parse(dlUrl));
+      final response = await request.close();
+      final total = response.contentLength;
+      var received = 0;
+      if (mounted) setState(() => _dlProgress = 0.0);
+      final sink = file.openWrite();
+      await response.listen((chunk) {
+        sink.add(chunk);
+        received += chunk.length;
+        if (total > 0 && mounted) {
+          setState(() => _dlProgress = received / total);
+        }
+      }).asFuture();
+      await sink.flush();
+      await sink.close();
+      // Fayl bo'sh yoki noto'g'ri bo'lsa o'chirib tashlash
+      if (await file.length() < 1024 * 1024) {
+        await file.delete();
+        if (mounted) setState(() => _dlProgress = null);
+        return;
+      }
+      if (mounted) {
+        setState(() { _dlProgress = null; _dlDone = true; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Video keshga yuklandi! Keyingi safar oflayn ko\'rinadi.'),
+            backgroundColor: AppColors.accent,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => _dlProgress = null);
+    }
   }
 
   // ─── PDF ────────────────────────────────────────────────────
@@ -237,6 +278,33 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return Column(children: [
       const SizedBox(height: 10),
       _buildTopBar(data.artikul),
+      if (_dlProgress != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: Row(children: [
+            const Icon(Icons.download, size: 14, color: AppColors.textGray),
+            const SizedBox(width: 6),
+            Expanded(child: LinearProgressIndicator(
+              value: _dlProgress,
+              backgroundColor: Colors.grey.shade300,
+              color: AppColors.accent,
+              minHeight: 4,
+              borderRadius: BorderRadius.circular(2),
+            )),
+            const SizedBox(width: 8),
+            Text('${((_dlProgress ?? 0) * 100).toInt()}%',
+                style: const TextStyle(fontSize: 10, color: AppColors.textGray)),
+          ]),
+        )
+      else if (_dlDone && widget.type == 'video')
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+          child: Row(children: [
+            Icon(Icons.offline_pin, size: 14, color: AppColors.accent),
+            SizedBox(width: 6),
+            Text('Oflayn mavjud', style: TextStyle(fontSize: 10, color: AppColors.accent)),
+          ]),
+        ),
       if (widget.type == 'pdf' && _isPdfNative)
         Padding(padding: const EdgeInsets.only(bottom: 4),
             child: Text('$_pdfPage / $_pdfTotal',
