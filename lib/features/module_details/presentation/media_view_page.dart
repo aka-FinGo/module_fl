@@ -97,25 +97,68 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     // 1. Cache tekshirish (faqat G-Drive uchun)
     if (_isDrive(url)) {
       final cf = await _getCacheFile(url, isVideo: true);
-      if (await cf.exists() && await cf.length() > 1024 * 1024) { 
-        _loadVideoHtml(cf.path, isUrl: true);
+      if (await cf.exists() && await cf.length() > 1024 * 1024) {
+        _loadLocalVideoHtml(cf.path);
         if (_isOnline) _tryDownloadVideo();
         return;
       }
     }
 
-    // 2. Online yuklash
+    // 2. YouTube
     final id = extractYoutubeId(url);
     if (id.isNotEmpty) {
-      _loadVideoHtml(id, isUrl: false);
-    } else {
-      _loadVideoHtml(MediaPdfHelper.buildDrivePreviewUrl(url), isUrl: true);
+      _loadYoutubePlayer(id);
+      return;
     }
-    
-    if (_isOnline && _isDrive(url)) _tryDownloadVideo();
+
+    // 3. G-Drive preview (WebView orqali)
+    _loadDrivePreview(MediaPdfHelper.buildDrivePreviewUrl(url));
+    if (_isOnline) _tryDownloadVideo();
   }
 
-  void _loadVideoHtml(String pathOrId, {required bool isUrl}) {
+  /// Lokal keshdan .mp4 ni HTML5 video player bilan ochish
+  void _loadLocalVideoHtml(String filePath) {
+    final html = '''
+<!DOCTYPE html>
+<html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+video{width:100%;height:100%;object-fit:contain;display:block}
+</style></head><body>
+<video controls autoplay playsinline src="file://$filePath"></video>
+</body></html>''';
+    final ctrl = _newController()
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
+        onWebResourceError: (err) {
+          if ((err.isForMainFrame ?? false) && mounted) {
+            setState(() { _isLoading = false; _error = 'Video ijro etilmadi.'; });
+          }
+        },
+      ))
+      ..loadHtmlString(html, baseUrl: 'file:///');
+    if (mounted) setState(() { _videoWeb = ctrl; _dlDone = true; });
+  }
+
+  /// YouTube custom player
+  void _loadYoutubePlayer(String videoId) {
+    final ctrl = _newController()
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
+        onWebResourceError: (err) {
+          if ((err.isForMainFrame ?? false) && mounted) {
+            setState(() { _isLoading = false; _error = 'YouTube yuklanmadi.'; });
+          }
+        },
+      ))
+      ..loadHtmlString(buildCustomYoutubeHtml(videoId), baseUrl: 'https://www.youtube.com');
+    if (mounted) setState(() => _videoWeb = ctrl);
+  }
+
+  /// G-Drive /preview WebView orqali
+  void _loadDrivePreview(String previewUrl) {
     final ctrl = _newController()
       ..setNavigationDelegate(NavigationDelegate(
         onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
@@ -125,7 +168,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           }
         },
       ))
-      ..loadHtmlString(buildCustomYoutubeHtml(pathOrId), baseUrl: isUrl ? null : 'https://www.youtube.com');
+      ..loadRequest(Uri.parse(previewUrl));
     if (mounted) setState(() => _videoWeb = ctrl);
   }
 
