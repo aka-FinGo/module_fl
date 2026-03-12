@@ -270,7 +270,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       if (mounted) setState(() { _dlDone = true; _dlProgress = null; });
       // Allaqachon keshda — native playerga o'tish
       if (_videoWeb != null && _chewieCtrl == null) {
+        final wCtrl = _videoWeb;
         setState(() { _videoWeb = null; _isLoading = true; });
+        if (wCtrl != null) {
+          try { await wCtrl.loadRequest(Uri.parse('about:blank')); } catch (_) {}
+        }
         await _initChewiePlayer(file);
       }
       return;
@@ -353,7 +357,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
         // WebView o'rniga native Chewie playerga o'tish
         if (_videoWeb != null || _chewieCtrl == null) {
+          final wCtrl = _videoWeb;
           setState(() { _videoWeb = null; _isLoading = true; });
+          if (wCtrl != null) {
+            try { await wCtrl.loadRequest(Uri.parse('about:blank')); } catch (_) {}
+          }
           await _initChewiePlayer(file);
         }
       }
@@ -576,7 +584,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         return buildWebIframe(embed, true, key: ValueKey('vid_${data.artikul}'));
       }
       if (_chewieCtrl != null) return Chewie(controller: _chewieCtrl!);
-      if (_videoWeb != null) return WebViewWidget(controller: _videoWeb!);
+      if (_videoWeb != null) return _buildVideoWebStack();
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
@@ -598,6 +606,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       Positioned(top: 0, right: 0,
           child: PointerInterceptor(
               child: Container(width: 80, height: 80, color: Colors.transparent))),
+    ]);
+  }
+
+  Widget _buildVideoWebStack() {
+    return Stack(children: [
+      WebViewWidget(controller: _videoWeb!),
+      // Yuklangunicha ko'rinadigan "Pop-out" G-Drive tugmasini pardalash
+      Positioned(top: 0, right: 0,
+          child: PointerInterceptor(
+              child: Container(width: 80, height: 80, color: Colors.transparent))),
+      // Tepada "Open with" chiqib qolmasligi uchun himoya pardasi
+      Positioned(bottom: 0, left: 0, right: 0,
+          child: PointerInterceptor(
+              child: Container(height: 50, color: Colors.transparent))),
     ]);
   }
 
