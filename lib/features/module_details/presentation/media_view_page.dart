@@ -3,11 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:video_player/video_player.dart';
@@ -46,11 +46,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isPdfLandscape = false;
 
   // Video
-  // Video
   WebViewController? _videoWeb;
   VideoPlayerController? _videoCtrl;
   ChewieController? _chewieCtrl;
-  double? _dlProgress; // null = yuklanmayapti, 0.0-1.0
+  double? _dlProgress;
   bool _dlDone = false;
 
   late final StreamSubscription<List<ConnectivityResult>> _conSub;
@@ -93,7 +92,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   // ─── VIDEO ──────────────────────────────────────────────────
   Future<void> _initVideo() async {
-    if (_isWeb) { if (mounted) setState(() => _isLoading = false); return; }
+    if (_isWeb) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
     final url = ref.read(moduleDataProvider)?.videoUrl ?? '';
     if (url.isEmpty) {
       if (mounted) setState(() { _isLoading = false; _error = 'Video manzili kiritilmagan'; });
@@ -104,9 +106,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (_isDrive(url)) {
       final cf = await _getCacheFile(url, isVideo: true);
       if (await cf.exists() && await cf.length() > 1024 * 1024) {
-        _initChewiePlayer(cf);
-        if (_isOnline) _tryDownloadVideo();
-        return;
+        // Keshdan o'qishdan oldin fayl haqiqiy video ekanligini tekshirish
+        if (await _isValidVideoFile(cf)) {
+          await _initChewiePlayer(cf);
+          if (_isOnline) _tryDownloadVideo(); // Yangi versiya bo'lsa yangilash
+          return;
+        } else {
+          // Yaroqsiz fayl — o'chirib qayta yuklab olish
+          await cf.delete();
+        }
       }
     }
 
@@ -117,36 +125,110 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return;
     }
 
-    // 3. G-Drive preview (WebView orqali)
+    // 3. G-Drive preview (WebView orqali) + fon yuklash
     _loadDrivePreview(MediaPdfHelper.buildDrivePreviewUrl(url));
     if (_isOnline) _tryDownloadVideo();
   }
 
+  /// Fayl haqiqiy video (MP4/MKV/AVI) ekanligini magic bytes bilan tekshirish
+  Future<bool> _isValidVideoFile(File file) async {
+    try {
+      final bytes = await file.openRead(0, 12).first;
+      if (bytes.length < 8) return false;
+
+      // MP4: offset 4-7 da "ftyp" yoki "moov" yoki "mdat"
+      final sig4 = String.fromCharCodes(bytes.sublist(4, 8));
+      if (sig4 == 'ftyp' || sig4 == 'moov' || sig4 == 'mdat' || sig4 == 'wide') {
+        return true;
+      }
+      // MKV: 1A 45 DF A3
+      if (bytes[0] == 0x1A && bytes[1] == 0x45 && bytes[2] == 0xDF && bytes[3] == 0xA3) {
+        return true;
+      }
+      // AVI: "RIFF"
+      if (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46) {
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Lokal keshdan .mp4 ni video_player va chewie yordamida ochish
   Future<void> _initChewiePlayer(File file) async {
+    // Eski controllerlarni tozalash
+    _chewieCtrl?.dispose();
+    _chewieCtrl = null;
+    await _videoCtrl?.dispose();
+    _videoCtrl = null;
+
     _videoCtrl = VideoPlayerController.file(file);
     try {
-      await _videoCtrl!.initialize();
+      await _videoCtrl!.initialize().timeout(const Duration(seconds: 15));
+
+      if (!mounted) return;
+
       _chewieCtrl = ChewieController(
         videoPlayerController: _videoCtrl!,
         autoPlay: true,
         looping: false,
-        allowFullScreen: false, // O'zimizning fullscreen mantiqi bor
+        allowFullScreen: false,
         materialProgressColors: ChewieProgressColors(
           playedColor: AppColors.accent,
           handleColor: AppColors.accent,
           backgroundColor: Colors.grey,
           bufferedColor: Colors.white30,
         ),
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: AppColors.danger, size: 40),
+                const SizedBox(height: 8),
+                Text(errorMessage,
+                    style: const TextStyle(color: Colors.white),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    final cf = await _getCacheFile(
+                        ref.read(moduleDataProvider)?.videoUrl ?? '',
+                        isVideo: true);
+                    if (await cf.exists()) await cf.delete();
+                    setState(() { _isLoading = true; _error = null; _chewieCtrl?.dispose(); _chewieCtrl = null; _videoCtrl?.dispose(); _videoCtrl = null; _dlDone = false; });
+                    _initVideo();
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+                  child: const Text('Qayta urinish'),
+                ),
+              ],
+            ),
+          );
+        },
       );
+
       if (mounted) setState(() { _isLoading = false; _dlDone = true; });
-    } catch (_) {
-      if (mounted) setState(() { _isLoading = false; _error = 'Video ijro etilmadi.'; });
+    } catch (e) {
+      // Fayl yaroqsiz — o'chirib xato ko'rsatish
+      try { await file.delete(); } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = 'Video ijro etilmadi. Qayta yuklab olinadi...';
+        });
+        // 2 sekunddan keyin qayta urinish
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          setState(() { _error = null; _isLoading = true; });
+          _initVideo();
+        }
+      }
     }
   }
 
   /// YouTube custom player
-
   void _loadYoutubePlayer(String videoId) {
     final ctrl = _newController()
       ..setNavigationDelegate(NavigationDelegate(
@@ -176,21 +258,69 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (mounted) setState(() => _videoWeb = ctrl);
   }
 
+  /// ─── BUG FIX: Virus-scan bypass + progress + magic bytes tekshiruvi ───
   Future<void> _tryDownloadVideo() async {
     final url = ref.read(moduleDataProvider)?.videoUrl ?? '';
     if (!_isDrive(url)) return;
+
     final file = await _getCacheFile(url, isVideo: true);
-    if (await file.exists() && await file.length() > 1024 * 1024) {
+    if (await file.exists() &&
+        await file.length() > 1024 * 1024 &&
+        await _isValidVideoFile(file)) {
       if (mounted) setState(() { _dlDone = true; _dlProgress = null; });
+      // Allaqachon keshda — native playerga o'tish
+      if (_videoWeb != null && _chewieCtrl == null) {
+        setState(() { _videoWeb = null; _isLoading = true; });
+        await _initChewiePlayer(file);
+      }
       return;
     }
+
     try {
-      final dlUrl = MediaPdfHelper.buildDriveDownloadUrl(url);
+      if (mounted) setState(() => _dlProgress = 0.0);
+
+      var dlUrl = MediaPdfHelper.buildDriveDownloadUrl(url);
+
+      // ── 1-qadam: Virus scan sahifasini bypass qilish ──
+      // http.get bilan boshlang'ich so'rov
+      var res = await http.get(Uri.parse(dlUrl))
+          .timeout(const Duration(seconds: 30));
+      final ct = res.headers['content-type'] ?? '';
+
+      if (ct.contains('text/html')) {
+        final body = res.body;
+        // Google Drive virus scan redirect parametrlarini izlash
+        final uuidM = RegExp(r'uuid=([^&>\s"]+)').firstMatch(body);
+        final confM = RegExp(r'confirm=([^&>\s"]+)').firstMatch(body);
+        final actM  = RegExp(r'action="([^"]+)"').firstMatch(body);
+
+        if (uuidM != null) {
+          dlUrl = '$dlUrl&uuid=${uuidM.group(1)}';
+        } else if (confM != null && confM.group(1) != 't') {
+          dlUrl = '$dlUrl&confirm=${confM.group(1)}';
+        } else if (actM != null) {
+          dlUrl = actM.group(1)!.replaceAll('&amp;', '&');
+        } else {
+          // confirm=t har doim ishlaydi
+          dlUrl = '$dlUrl&confirm=t';
+        }
+      }
+
+      // ── 2-qadam: Streaming download (progress bilan) ──
       final request = await HttpClient().getUrl(Uri.parse(dlUrl));
+      request.headers.set('User-Agent', 'Mozilla/5.0');
       final response = await request.close();
+
+      // HTML kelsa — virus scan bypass ishlamadi
+      final respCt = response.headers.contentType?.mimeType ?? '';
+      if (respCt.contains('html') || respCt.contains('text')) {
+        if (mounted) setState(() => _dlProgress = null);
+        return;
+      }
+
       final total = response.contentLength;
       var received = 0;
-      if (mounted) setState(() => _dlProgress = 0.0);
+
       final sink = file.openWrite();
       await response.listen((chunk) {
         sink.add(chunk);
@@ -201,25 +331,30 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       }).asFuture();
       await sink.flush();
       await sink.close();
-      // Fayl bo'sh yoki noto'g'ri bo'lsa o'chirib tashlash
-      if (await file.length() < 1024 * 1024) {
+
+      // ── 3-qadam: Fayl validatsiyasi ──
+      if (await file.length() < 512 * 1024 || !await _isValidVideoFile(file)) {
         await file.delete();
         if (mounted) setState(() => _dlProgress = null);
         return;
       }
+
+      // ── 4-qadam: Muvaffaqiyatli — native playerga o'tish ──
       if (mounted) {
         setState(() { _dlProgress = null; _dlDone = true; });
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Video keshga yuklandi! Keyingi safar oflayn ko\'rinadi.'),
+            content: Text('✅ Video keshga yuklandi! Oflayn ko\'rinadi.'),
             backgroundColor: AppColors.accent,
             duration: Duration(seconds: 3),
           ),
         );
-        // Yuklab bo'lingach dhol (WebView) ni yopib, asl VideoPlayer ga o'tish
-        if (_videoWeb != null) {
-            setState(() { _videoWeb = null; _isLoading = true; });
-            _initChewiePlayer(file);
+
+        // WebView o'rniga native Chewie playerga o'tish
+        if (_videoWeb != null || _chewieCtrl == null) {
+          setState(() { _videoWeb = null; _isLoading = true; });
+          await _initChewiePlayer(file);
         }
       }
     } catch (_) {
@@ -309,8 +444,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   void dispose() {
     _conSub.cancel();
     _pdfCtrl?.dispose();
-    _videoCtrl?.dispose();
     _chewieCtrl?.dispose();
+    _videoCtrl?.dispose();
     if (_isWeb && widget.type == 'pdf') setWebZoomable(false);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -398,7 +533,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildContent(String url, dynamic data) {
-    if (_isLoading && _videoWeb == null && _pdfWeb == null && _pdfCtrl == null && _chewieCtrl == null) {
+    if (_isLoading &&
+        _videoWeb == null &&
+        _pdfWeb == null &&
+        _pdfCtrl == null &&
+        _chewieCtrl == null) {
       return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         CircularProgressIndicator(color: AppColors.accent), SizedBox(height: 12),
         Text('Yuklanmoqda...', style: TextStyle(color: AppColors.textGray)),
@@ -415,7 +554,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         const SizedBox(height: 20),
         ElevatedButton.icon(
           onPressed: () {
-            setState(() { _isLoading = true; _error = null; _isPdfNative = false; _pdfWeb = null; _videoWeb = null; });
+            setState(() {
+              _isLoading = true; _error = null;
+              _isPdfNative = false; _pdfWeb = null; _videoWeb = null;
+              _chewieCtrl?.dispose(); _chewieCtrl = null;
+              _videoCtrl?.dispose(); _videoCtrl = null;
+            });
             widget.type == 'pdf' ? _initPdf() : _initVideo();
           },
           icon: const Icon(Icons.refresh), label: const Text('Qayta urinish'),
@@ -438,7 +582,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     if (_isWeb) return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
     if (_isPdfNative && _pdfCtrl != null) {
-      return PdfView(controller: _pdfCtrl!, scrollDirection: Axis.vertical,
+      return PdfView(
+          controller: _pdfCtrl!,
+          scrollDirection: Axis.vertical,
           onDocumentLoaded: (d) { if (mounted) setState(() => _pdfTotal = d.pagesCount); },
           onPageChanged: (p) { if (mounted) setState(() => _pdfPage = p); });
     }
