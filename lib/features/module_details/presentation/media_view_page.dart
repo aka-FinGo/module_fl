@@ -8,7 +8,10 @@ import 'package:pdfx/pdfx.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../data/repositories/api_repository.dart';
@@ -43,7 +46,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isPdfLandscape = false;
 
   // Video
+  // Video
   WebViewController? _videoWeb;
+  VideoPlayerController? _videoCtrl;
+  ChewieController? _chewieCtrl;
   double? _dlProgress; // null = yuklanmayapti, 0.0-1.0
   bool _dlDone = false;
 
@@ -98,7 +104,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (_isDrive(url)) {
       final cf = await _getCacheFile(url, isVideo: true);
       if (await cf.exists() && await cf.length() > 1024 * 1024) {
-        _loadLocalVideoHtml(cf.path);
+        _initChewiePlayer(cf);
         if (_isOnline) _tryDownloadVideo();
         return;
       }
@@ -116,33 +122,31 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (_isOnline) _tryDownloadVideo();
   }
 
-  /// Lokal keshdan .mp4 ni HTML5 video player bilan ochish
-  void _loadLocalVideoHtml(String filePath) {
-    final html = '''
-<!DOCTYPE html>
-<html><head>
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;background:#000;overflow:hidden}
-video{width:100%;height:100%;object-fit:contain;display:block}
-</style></head><body>
-<video controls autoplay playsinline src="file://$filePath"></video>
-</body></html>''';
-    final ctrl = _newController()
-      ..setNavigationDelegate(NavigationDelegate(
-        onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
-        onWebResourceError: (err) {
-          if ((err.isForMainFrame ?? false) && mounted) {
-            setState(() { _isLoading = false; _error = 'Video ijro etilmadi.'; });
-          }
-        },
-      ))
-      ..loadHtmlString(html, baseUrl: 'file:///');
-    if (mounted) setState(() { _videoWeb = ctrl; _dlDone = true; });
+  /// Lokal keshdan .mp4 ni video_player va chewie yordamida ochish
+  Future<void> _initChewiePlayer(File file) async {
+    _videoCtrl = VideoPlayerController.file(file);
+    try {
+      await _videoCtrl!.initialize();
+      _chewieCtrl = ChewieController(
+        videoPlayerController: _videoCtrl!,
+        autoPlay: true,
+        looping: false,
+        allowFullScreen: false, // O'zimizning fullscreen mantiqi bor
+        materialProgressColors: ChewieProgressColors(
+          playedColor: AppColors.accent,
+          handleColor: AppColors.accent,
+          backgroundColor: Colors.grey,
+          bufferedColor: Colors.white30,
+        ),
+      );
+      if (mounted) setState(() { _isLoading = false; _dlDone = true; });
+    } catch (_) {
+      if (mounted) setState(() { _isLoading = false; _error = 'Video ijro etilmadi.'; });
+    }
   }
 
   /// YouTube custom player
+
   void _loadYoutubePlayer(String videoId) {
     final ctrl = _newController()
       ..setNavigationDelegate(NavigationDelegate(
@@ -212,6 +216,11 @@ video{width:100%;height:100%;object-fit:contain;display:block}
             duration: Duration(seconds: 3),
           ),
         );
+        // Yuklab bo'lingach dhol (WebView) ni yopib, asl VideoPlayer ga o'tish
+        if (_videoWeb != null) {
+            setState(() { _videoWeb = null; _isLoading = true; });
+            _initChewiePlayer(file);
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _dlProgress = null);
@@ -300,6 +309,8 @@ video{width:100%;height:100%;object-fit:contain;display:block}
   void dispose() {
     _conSub.cancel();
     _pdfCtrl?.dispose();
+    _videoCtrl?.dispose();
+    _chewieCtrl?.dispose();
     if (_isWeb && widget.type == 'pdf') setWebZoomable(false);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -387,13 +398,13 @@ video{width:100%;height:100%;object-fit:contain;display:block}
   }
 
   Widget _buildContent(String url, dynamic data) {
-    if (_isLoading && _videoWeb == null && _pdfWeb == null && _pdfCtrl == null) {
+    if (_isLoading && _videoWeb == null && _pdfWeb == null && _pdfCtrl == null && _chewieCtrl == null) {
       return const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         CircularProgressIndicator(color: AppColors.accent), SizedBox(height: 12),
         Text('Yuklanmoqda...', style: TextStyle(color: AppColors.textGray)),
       ]));
     }
-    if (_error != null && _pdfWeb == null && _pdfCtrl == null) {
+    if (_error != null && _pdfWeb == null && _pdfCtrl == null && _chewieCtrl == null) {
       return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
           mainAxisAlignment: MainAxisAlignment.center, children: [
         Icon(_isOnline ? Icons.error_outline : Icons.wifi_off,
@@ -420,6 +431,7 @@ video{width:100%;height:100%;object-fit:contain;display:block}
             : MediaPdfHelper.buildDrivePreviewUrl(url);
         return buildWebIframe(embed, true, key: ValueKey('vid_${data.artikul}'));
       }
+      if (_chewieCtrl != null) return Chewie(controller: _chewieCtrl!);
       if (_videoWeb != null) return WebViewWidget(controller: _videoWeb!);
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
