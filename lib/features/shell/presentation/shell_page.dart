@@ -8,8 +8,8 @@ import '../../scanner/presentation/scanner_page.dart';
 import '../../../data/repositories/api_repository.dart';
 
 final bottomNavIndexProvider = StateProvider<int>((ref) => 0);
-final appBarTitleProvider = StateProvider<String>((ref) => 'Aristokrat Mebel');
-final isFullScreenProvider = StateProvider<bool>((ref) => false);
+final appBarTitleProvider    = StateProvider<String>((ref) => 'Aristokrat Mebel');
+final isFullScreenProvider   = StateProvider<bool>((ref) => false);
 
 class ShellPage extends ConsumerWidget {
   const ShellPage({super.key});
@@ -17,15 +17,16 @@ class ShellPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = ref.watch(bottomNavIndexProvider);
-    final title = ref.watch(appBarTitleProvider);
-    final moduleData = ref.watch(moduleDataProvider);
+    final title        = ref.watch(appBarTitleProvider);
+    final moduleData   = ref.watch(moduleDataProvider);
     final isFullScreen = ref.watch(isFullScreenProvider);
 
-    final List<Widget> pages = [
-      const HomePage(),
-      const MediaViewPage(type: 'pdf'),
-      const MediaViewPage(type: 'video'),
-      const ModuleDetailsPage(),
+    // ── IndexedStack: barcha sahifalar tirik, PDF/Video state aralashmaydi
+    const pages = [
+      HomePage(),
+      MediaViewPage(type: 'pdf',   key: ValueKey('pdf_page')),
+      MediaViewPage(type: 'video', key: ValueKey('video_page')),
+      ModuleDetailsPage(),
     ];
 
     return Scaffold(
@@ -33,12 +34,11 @@ class ShellPage extends ConsumerWidget {
           ? null
           : AppBar(
               title: Text(title,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 18)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: pages[currentIndex],
+      body: IndexedStack(
+        index: currentIndex,
+        children: pages,
       ),
       floatingActionButton: isFullScreen
           ? null
@@ -46,9 +46,8 @@ class ShellPage extends ConsumerWidget {
               backgroundColor: AppColors.accent,
               shape: const CircleBorder(),
               onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => const ScannerPage())),
-              child: const Icon(Icons.qr_code_scanner,
-                  color: Colors.white, size: 28),
+                  MaterialPageRoute(builder: (_) => const ScannerPage())),
+              child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: isFullScreen
@@ -60,23 +59,19 @@ class ShellPage extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _navItem(
-                      ref, Icons.history, 'Bosh sahifa', 0, currentIndex, true),
-                  _navItem(ref, Icons.architecture, 'Chizma', 1, currentIndex,
-                      moduleData != null),
+                  _navItem(ref, Icons.history,              'Bosh sahifa', 0, currentIndex, true),
+                  _navItem(ref, Icons.architecture,         'Chizma',      1, currentIndex, moduleData != null),
                   const SizedBox(width: 40),
-                  _navItem(ref, Icons.play_circle_outline, 'Video', 2,
-                      currentIndex, moduleData != null),
-                  _navItem(ref, Icons.inventory_2_outlined, 'Furnitura', 3,
-                      currentIndex, moduleData != null),
+                  _navItem(ref, Icons.play_circle_outline,  'Video',       2, currentIndex, moduleData != null),
+                  _navItem(ref, Icons.inventory_2_outlined, 'Furnitura',   3, currentIndex, moduleData != null),
                 ],
               ),
             ),
     );
   }
 
-  Widget _navItem(WidgetRef ref, IconData icon, String label, int index,
-      int current, bool enabled) {
+  Widget _navItem(WidgetRef ref, IconData icon, String label,
+      int index, int current, bool enabled) {
     final isActive = index == current;
     final color = enabled
         ? (isActive ? AppColors.accent : Colors.white70)
@@ -88,8 +83,7 @@ class ShellPage extends ConsumerWidget {
             ? () {
                 ref.read(bottomNavIndexProvider.notifier).state = index;
                 if (index == 0) {
-                  ref.read(appBarTitleProvider.notifier).state =
-                      'Aristokrat Mebel';
+                  ref.read(appBarTitleProvider.notifier).state = 'Aristokrat Mebel';
                 }
               }
             : null,
@@ -104,8 +98,7 @@ class ShellPage extends ConsumerWidget {
                   style: TextStyle(
                       color: color,
                       fontSize: 10,
-                      fontWeight:
-                          isActive ? FontWeight.bold : FontWeight.normal)),
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal)),
               if (isActive)
                 Container(
                   margin: const EdgeInsets.only(top: 2),
