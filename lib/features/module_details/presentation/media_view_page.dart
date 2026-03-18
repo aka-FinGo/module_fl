@@ -22,15 +22,20 @@ class MediaViewPage extends ConsumerStatefulWidget {
   ConsumerState<MediaViewPage> createState() => _MediaViewPageState();
 }
 
-class _MediaViewPageState extends ConsumerState<MediaViewPage> {
+class _MediaViewPageState extends ConsumerState<MediaViewPage>
+    with AutomaticKeepAliveClientMixin {
+  // IndexedStack bilan sahifa tirik tuради — keepAlive kerak
+  @override
+  bool get wantKeepAlive => true;
+
   final bool _isWeb =
       const bool.fromEnvironment('dart.library.html', defaultValue: false);
 
-  bool _isOnline = true;
+  bool _isOnline  = true;
   bool _isLoading = true;
   String? _errorMessage;
 
-  // PDF — ikki rejim (mobile)
+  // PDF — mobile
   PdfController?     _pdfController;
   WebViewController? _pdfWebViewController;
   bool _isPdfNative    = false;
@@ -38,59 +43,55 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   int  _pdfTotalPages  = 1;
   bool _isPdfLandscape = false;
 
-  // Video — WebView (mobile)
+  // Video — mobile
   WebViewController? _videoWebViewController;
 
-  // Web platform uchun iframe URL
+  // Web platform
   String? _webUrl;
-  bool    _webIsVideo = false; // video uchun <video> tag ishlatish
+  bool    _webIsDirectVideo = false;
+
+  // Joriy ko'rsatilgan modul — qayta init uchun
+  String? _lastArtikul;
 
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
   // ─── HELPERS ─────────────────────────────────────────────
-  bool _isDriveUrl(String url)   => url.contains('drive.google.com');
-  bool _isYoutubeUrl(String url) => url.contains('youtu.be') || url.contains('youtube.com');
-  bool _isTelegramUrl(String url)=> url.contains('api.telegram.org');
+  bool _isDriveUrl(String u)   => u.contains('drive.google.com');
+  bool _isYoutubeUrl(String u) => u.contains('youtu.be') || u.contains('youtube.com');
+  bool _isTelegramUrl(String u)=> u.contains('api.telegram.org');
 
   String _extractDriveId(String url) =>
       RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0) ?? '';
 
-  String _buildDrivePreviewUrl(String url) {
+  String _drivePreview(String url) {
     final id = _extractDriveId(url);
     return id.isNotEmpty ? 'https://drive.google.com/file/d/$id/preview' : url;
   }
 
-  String _buildDriveDownloadUrl(String url) {
+  String _driveDownload(String url) {
     final id = _extractDriveId(url);
     return id.isNotEmpty
         ? 'https://drive.google.com/uc?export=download&confirm=t&id=$id'
         : url;
   }
 
-  String _buildYoutubeEmbedUrl(String url) {
-    String? videoId;
-    if (url.contains('youtu.be/')) {
-      videoId = url.split('youtu.be/')[1].split('?')[0];
-    } else if (url.contains('youtube.com/watch')) {
-      videoId = Uri.parse(url).queryParameters['v'];
-    } else if (url.contains('youtube.com/embed/')) {
-      videoId = url.split('youtube.com/embed/')[1].split('?')[0];
-    }
-    if (videoId != null && videoId.isNotEmpty) {
-      return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&controls=1';
-    }
-    return url;
+  String _youtubeEmbed(String url) {
+    String? id;
+    if (url.contains('youtu.be/'))        id = url.split('youtu.be/')[1].split('?')[0];
+    else if (url.contains('youtube.com/watch')) id = Uri.parse(url).queryParameters['v'];
+    else if (url.contains('youtube.com/embed/'))id = url.split('youtube.com/embed/')[1].split('?')[0];
+    return (id != null && id.isNotEmpty)
+        ? 'https://www.youtube.com/embed/$id?autoplay=0&rel=0&modestbranding=1&controls=1'
+        : url;
   }
 
-  // Telegram PDF → Google Docs Viewer orqali ko'rsatish
-  String _buildDocsViewerUrl(String fileUrl) {
-    final encoded = Uri.encodeComponent(fileUrl);
-    return 'https://docs.google.com/viewer?url=$encoded&embedded=true';
-  }
+  String _docsViewer(String fileUrl) =>
+      'https://docs.google.com/viewer?url=${Uri.encodeComponent(fileUrl)}&embedded=true';
 
-  String _buildVideoEmbedUrl(String url) {
-    if (_isYoutubeUrl(url)) return _buildYoutubeEmbedUrl(url);
-    if (_isDriveUrl(url))   return _buildDrivePreviewUrl(url);
+  // Video URL ni embed ga aylantirish (non-Telegram)
+  String _videoEmbed(String url) {
+    if (_isYoutubeUrl(url)) return _youtubeEmbed(url);
+    if (_isDriveUrl(url))   return _drivePreview(url);
     return url;
   }
 
@@ -98,27 +99,62 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkConnectivity());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAndInit());
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       if (!mounted) return;
       final online = results.first != ConnectivityResult.none;
       setState(() => _isOnline = online);
       if (widget.type == 'pdf' && online && !_isPdfNative && !_isWeb) {
-        _tryDownloadPdfInBackground();
+        _tryDownloadPdf();
       }
     });
     if (_isWeb && widget.type == 'pdf') setWebZoomable(true);
   }
 
-  Future<void> _checkConnectivity() async {
+  Future<void> _checkAndInit() async {
     try {
       final r = await Connectivity().checkConnectivity();
       if (mounted) setState(() => _isOnline = r.first != ConnectivityResult.none);
     } catch (_) {}
+
+    final data = ref.read(moduleDataProvider);
+    final artikul = data?.artikul ?? '';
+
+    // Modul o'zgarmagan bo'lsa qayta init qilmaymiz
+    if (artikul == _lastArtikul && !_isLoading) return;
+    _lastArtikul = artikul;
+
     if (widget.type == 'pdf') {
       await _initPdf();
     } else {
       await _initVideo();
+    }
+  }
+
+  // ─── Modulni kuzatish ─────────────────────────────────────
+  @override
+  void didUpdateWidget(MediaViewPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // type o'zgarmaydi (IndexedStack), lekin modul o'zgarishi mumkin
+  }
+
+  // ModuleData o'zgarganda qayta init
+  void _reinitIfNeeded() {
+    final data = ref.read(moduleDataProvider);
+    final artikul = data?.artikul ?? '';
+    if (artikul != _lastArtikul) {
+      _lastArtikul = artikul;
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+        _isPdfNative = false;
+        _pdfController?.dispose();
+        _pdfController = null;
+        _pdfWebViewController = null;
+        _videoWebViewController = null;
+        _webUrl = null;
+      });
+      if (widget.type == 'pdf') _initPdf(); else _initVideo();
     }
   }
 
@@ -130,55 +166,93 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return;
     }
 
-    // ── WEB PLATFORM ────────────────────────────────────────
+    // ── WEB PLATFORM ──────────────────────────────────────
     if (_isWeb) {
       String? url;
-      bool isDirectVideo = false;
+      bool isDirect = false;
 
-      // 1. Telegram ID — prioritet (Drive/YouTube dan oldin)
       if (data.tgVideoId.isNotEmpty && _isOnline) {
         final tgUrl = await _getTelegramUrl(data.tgVideoId);
-        if (tgUrl != null && tgUrl.isNotEmpty) {
-          url = tgUrl;
-          isDirectVideo = true; // <video> tag ishlatamiz
-        }
+        if (tgUrl != null) { url = tgUrl; isDirect = true; }
       }
-
-      // 2. YouTube embed
       if (url == null && data.videoUrl.isNotEmpty && _isYoutubeUrl(data.videoUrl)) {
-        url = _buildYoutubeEmbedUrl(data.videoUrl);
+        url = _youtubeEmbed(data.videoUrl);
       }
-
-      // 3. Drive /preview iframe
       if (url == null && data.videoUrl.isNotEmpty && _isDriveUrl(data.videoUrl)) {
-        url = _buildDrivePreviewUrl(data.videoUrl);
+        url = _drivePreview(data.videoUrl);
       }
-
-      // 4. Boshqa URL
       if (url == null && data.videoUrl.isNotEmpty) {
-        url = data.videoUrl;
-        isDirectVideo = true;
+        url = data.videoUrl; isDirect = true;
       }
 
       if (mounted) setState(() {
-        _webUrl = url;
-        _webIsVideo = isDirectVideo;
-        _isLoading = false;
+        _webUrl = url; _webIsDirectVideo = isDirect; _isLoading = false;
         if (url == null) _errorMessage = 'Video manbai topilmadi';
       });
       return;
     }
 
-    // ── MOBILE PLATFORM ─────────────────────────────────────
+    // ── MOBILE PLATFORM ────────────────────────────────────
+    // 1. Telegram video → HTML <video> wrapper (download oldini olish uchun)
     if (data.tgVideoId.isNotEmpty && _isOnline) {
-      final url = await _getTelegramUrl(data.tgVideoId);
-      if (url != null) { _loadVideoWebView(url); return; }
+      final tgUrl = await _getTelegramUrl(data.tgVideoId);
+      if (tgUrl != null) {
+        _loadVideoHtml(tgUrl); // ← HTML wrapper
+        return;
+      }
     }
+    // 2. YouTube / Drive embed
     if (data.videoUrl.isNotEmpty) {
-      _loadVideoWebView(_buildVideoEmbedUrl(data.videoUrl));
+      _loadVideoWebView(_videoEmbed(data.videoUrl));
       return;
     }
     if (mounted) setState(() { _isLoading = false; _errorMessage = 'Video kiritilmagan'; });
+  }
+
+  /// Telegram video URL → HTML <video> tag sifatida yuklash
+  /// Shunday qilib Android download manager ishga tushmaydi
+  void _loadVideoHtml(String videoUrl) {
+    final html = '''<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { width:100%; height:100%; background:#000; overflow:hidden; }
+video {
+  width:100%; height:100%;
+  object-fit:contain;
+  display:block;
+}
+</style>
+</head>
+<body>
+<video
+  controls
+  playsinline
+  controlslist="nodownload"
+  preload="metadata"
+>
+  <source src="${videoUrl.replaceAll('"', '&quot;')}">
+  Video yuklanmadi.
+</video>
+</body>
+</html>''';
+
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.black)
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (_) { if (mounted) setState(() => _isLoading = false); },
+        onWebResourceError: (err) {
+          if (err.isForMainFrame != false && mounted) {
+            setState(() { _isLoading = false; _errorMessage = 'Video yuklanmadi.'; });
+          }
+        },
+      ))
+      ..loadHtmlString(html);
+
+    if (mounted) setState(() => _videoWebViewController = controller);
   }
 
   void _loadVideoWebView(String url) {
@@ -205,46 +279,31 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return;
     }
 
-    // ── WEB PLATFORM ────────────────────────────────────────
+    // ── WEB PLATFORM ──────────────────────────────────────
     if (_isWeb) {
       String? url;
-
-      // 1. Telegram ID — prioritet (har doim birinchi)
       if (data.tgPdfId.isNotEmpty && _isOnline) {
         final tgUrl = await _getTelegramUrl(data.tgPdfId);
-        if (tgUrl != null && tgUrl.isNotEmpty) {
-          // Telegram URL → Google Docs Viewer orqali ko'rsatamiz
-          url = _buildDocsViewerUrl(tgUrl);
-        }
+        if (tgUrl != null) url = _docsViewer(tgUrl);
       }
-
-      // 2. Drive URL (faqat Telegram muvaffaqiyatsiz bo'lganda)
       if (url == null && data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
-        url = _buildDrivePreviewUrl(data.pdfUrl);
+        url = _drivePreview(data.pdfUrl);
       }
-
-      // 3. Boshqa to'g'ridan URL
       if (url == null && data.pdfUrl.isNotEmpty) {
-        url = _buildDocsViewerUrl(data.pdfUrl);
+        url = _docsViewer(data.pdfUrl);
       }
-
       if (mounted) setState(() {
-        _webUrl = url;
-        _isLoading = false;
-        if (url == null) {
-          _errorMessage = _isOnline
-              ? 'PDF manbai topilmadi'
-              : 'Offline: Internet kerak';
-        }
+        _webUrl = url; _isLoading = false;
+        if (url == null) _errorMessage = _isOnline ? 'PDF topilmadi' : 'Offline: internet kerak';
       });
       return;
     }
 
-    // ── MOBILE PLATFORM ─────────────────────────────────────
-    // 1. Keshni tekshirish
+    // ── MOBILE PLATFORM ────────────────────────────────────
     final cacheKey  = data.tgPdfId.isNotEmpty ? data.tgPdfId : data.pdfUrl;
-    final cacheFile = await _getCacheFile(cacheKey);
+    final cacheFile = await _cacheFile(cacheKey);
 
+    // 1. Keshdan
     if (await cacheFile.exists() && await cacheFile.length() > 1024) {
       try {
         final ctrl = PdfController(document: PdfDocument.openFile(cacheFile.path));
@@ -254,12 +313,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           _isPdfNative = true;
           _isLoading = false;
         });
-        if (_isOnline) _tryDownloadPdfInBackground();
+        if (_isOnline) _tryDownloadPdf(); // yangilash
         return;
       } catch (_) { await cacheFile.delete(); }
     }
 
-    // 2. Drive WebView /preview (darhol ko'rsatish)
+    // 2. Drive WebView (darhol ko'rsatish)
     if (data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
       _initPdfWebView(data.pdfUrl);
     } else if (data.tgPdfId.isEmpty && !_isOnline) {
@@ -271,7 +330,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     } else {
       if (mounted) setState(() => _isLoading = true);
     }
-    if (_isOnline) _tryDownloadPdfInBackground();
+    if (_isOnline) _tryDownloadPdf();
   }
 
   void _initPdfWebView(String url) {
@@ -288,87 +347,70 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           }
         },
       ))
-      ..loadRequest(Uri.parse(_buildDrivePreviewUrl(url)));
+      ..loadRequest(Uri.parse(_drivePreview(url)));
     if (mounted && !_isPdfNative) setState(() => _pdfWebViewController = controller);
   }
 
-  Future<void> _tryDownloadPdfInBackground() async {
+  Future<void> _tryDownloadPdf() async {
     final data = ref.read(moduleDataProvider);
     if (data == null) return;
-
-    String? downloadUrl;
-    if (data.tgPdfId.isNotEmpty) {
-      downloadUrl = await _getTelegramUrl(data.tgPdfId);
-    }
-    if (downloadUrl == null && data.pdfUrl.isNotEmpty) {
-      downloadUrl = _buildDriveDownloadUrl(data.pdfUrl);
-    }
-    if (downloadUrl == null) return;
+    String? dlUrl;
+    if (data.tgPdfId.isNotEmpty) dlUrl = await _getTelegramUrl(data.tgPdfId);
+    if (dlUrl == null && data.pdfUrl.isNotEmpty) dlUrl = _driveDownload(data.pdfUrl);
+    if (dlUrl == null) return;
 
     final cacheKey  = data.tgPdfId.isNotEmpty ? data.tgPdfId : data.pdfUrl;
-    final cacheFile = await _getCacheFile(cacheKey);
-    final ok        = await _downloadPdf(downloadUrl, cacheFile);
+    final cacheFile = await _cacheFile(cacheKey);
+    final ok        = await _downloadPdf(dlUrl, cacheFile);
     if (!ok) return;
 
     try {
       final ctrl = PdfController(document: PdfDocument.openFile(cacheFile.path));
-      if (mounted) {
-        setState(() {
-          _pdfController?.dispose();
-          _pdfController = ctrl;
-          _isPdfNative = true;
-          _pdfWebViewController = null;
-        });
-      }
+      if (mounted) setState(() {
+        _pdfController?.dispose();
+        _pdfController = ctrl;
+        _isPdfNative = true;
+        _pdfWebViewController = null;
+        _isLoading = false;
+      });
     } catch (_) {}
   }
 
-  // ─── Telegram URL proxy ───────────────────────────────────
+  // ─── Telegram URL ─────────────────────────────────────────
   Future<String?> _getTelegramUrl(String fileId) async {
     try {
-      final repo = ref.read(apiRepositoryProvider);
-      return await repo.getTelegramFileUrl(fileId);
-    } catch (_) {
-      return null;
-    }
+      return await ref.read(apiRepositoryProvider).getTelegramFileUrl(fileId);
+    } catch (_) { return null; }
   }
 
-  // ─── PDF download (mobile) ────────────────────────────────
-  Future<File> _getCacheFile(String key) async {
-    final dir      = await getTemporaryDirectory();
-    final safeName = key.replaceAll(RegExp(r'[^\w]'), '_');
-    return File('${dir.path}/pdf_$safeName.pdf');
+  // ─── PDF cache & download ─────────────────────────────────
+  Future<File> _cacheFile(String key) async {
+    final dir  = await getTemporaryDirectory();
+    final name = key.replaceAll(RegExp(r'[^\w]'), '_');
+    return File('${dir.path}/pdf_$name.pdf');
   }
 
   Future<bool> _downloadPdf(String url, File file) async {
     try {
-      var response = await http.get(Uri.parse(url))
-          .timeout(const Duration(seconds: 90));
-      final ct = response.headers['content-type'] ?? '';
+      var res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 90));
+      final ct = res.headers['content-type'] ?? '';
       if (ct.contains('text/html')) {
-        final body         = response.body;
-        final uuidMatch    = RegExp(r'uuid=([^&>\s]+)').firstMatch(body);
-        final confirmMatch = RegExp(r'confirm=([^&>\s]+)').firstMatch(body);
-        final actionMatch  = RegExp(r'action="([^"]+)"').firstMatch(body);
+        final body = res.body;
         String newUrl = url;
-        if (uuidMatch != null) {
-          newUrl = '$url&uuid=${uuidMatch.group(1)}';
-        } else if (confirmMatch != null && confirmMatch.group(1) != 't') {
-          newUrl = '$url&confirm=${confirmMatch.group(1)}';
-        } else if (actionMatch != null) {
-          newUrl = actionMatch.group(1)!.replaceAll('&amp;', '&');
-        }
+        final uuidM = RegExp(r'uuid=([^&>\s]+)').firstMatch(body);
+        final confM = RegExp(r'confirm=([^&>\s]+)').firstMatch(body);
+        final actM  = RegExp(r'action="([^"]+)"').firstMatch(body);
+        if (uuidM != null) newUrl = '$url&uuid=${uuidM.group(1)}';
+        else if (confM != null && confM.group(1) != 't') newUrl = '$url&confirm=${confM.group(1)}';
+        else if (actM != null) newUrl = actM.group(1)!.replaceAll('&amp;', '&');
         if (newUrl != url) {
-          response = await http.get(Uri.parse(newUrl))
-              .timeout(const Duration(seconds: 90));
+          res = await http.get(Uri.parse(newUrl)).timeout(const Duration(seconds: 90));
         }
       }
-      if (response.statusCode == 200 && response.bodyBytes.length > 1024) {
-        final bytes = response.bodyBytes;
-        if (bytes.length >= 4 &&
-            bytes[0] == 0x25 && bytes[1] == 0x50 &&
-            bytes[2] == 0x44 && bytes[3] == 0x46) {
-          await file.writeAsBytes(bytes);
+      if (res.statusCode == 200 && res.bodyBytes.length > 1024) {
+        final b = res.bodyBytes;
+        if (b.length >= 4 && b[0]==0x25 && b[1]==0x50 && b[2]==0x44 && b[3]==0x46) {
+          await file.writeAsBytes(b);
           return true;
         }
       }
@@ -376,7 +418,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     return false;
   }
 
-  // ─── FULLSCREEN & ROTATE ──────────────────────────────────
+  // ─── Fullscreen & Rotate ──────────────────────────────────
   void _toggleFullScreen() {
     final fs = ref.read(isFullScreenProvider);
     ref.read(isFullScreenProvider.notifier).state = !fs;
@@ -411,11 +453,20 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   // ─── BUILD ────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    super.build(context); // AutomaticKeepAliveClientMixin
+
+    // Modul o'zgarganda qayta init
+    WidgetsBinding.instance.addPostFrameCallback((_) => _reinitIfNeeded());
+
     final isFullScreen = ref.watch(isFullScreenProvider);
-    if (isFullScreen) return _buildFullScreenView();
+    if (isFullScreen) return _buildFullScreen();
 
     final data = ref.watch(moduleDataProvider);
-    if (data == null) return const Center(child: Text('Ma\'lumot yo\'q'));
+    if (data == null) {
+      return const Center(
+        child: Text('Modul skanerlang', style: TextStyle(color: AppColors.textGray)),
+      );
+    }
 
     final hasContent = widget.type == 'pdf' ? data.hasPdf : data.hasVideo;
     if (!hasContent) {
@@ -437,34 +488,18 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             child: Text('$_pdfCurrentPage / $_pdfTotalPages',
                 style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ),
-        if (_isLoading && _isWeb)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(width: 10, height: 10,
-                    child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray)),
-                SizedBox(width: 6),
-                Text('Telegram\'dan URL yuklanmoqda...',
-                    style: TextStyle(color: AppColors.textGray, fontSize: 11)),
-              ],
-            ),
-          ),
-        if (widget.type == 'pdf' && !_isWeb && !_isPdfNative && _isOnline &&
-            (_pdfWebViewController != null || _isLoading))
+        if (!_isPdfNative && _isOnline && widget.type == 'pdf' &&
+            (_pdfWebViewController != null || (_isLoading && !_isWeb)))
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(
-                  width: 10, height: 10,
-                  child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray),
-                ),
+                const SizedBox(width: 10, height: 10,
+                    child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray)),
                 const SizedBox(width: 6),
                 Text(
-                  ref.read(moduleDataProvider)?.tgPdfId.isNotEmpty == true
+                  data.tgPdfId.isNotEmpty
                       ? 'Telegram\'dan yuklanmoqda...'
                       : 'Native rejim yuklanmoqda...',
                   style: const TextStyle(color: AppColors.textGray, fontSize: 11),
@@ -488,13 +523,13 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             const Padding(padding: EdgeInsets.only(right: 4),
                 child: Icon(Icons.wifi_off, color: Colors.orange, size: 18)),
           if (widget.type == 'pdf' && (data.tgPdfId?.isNotEmpty == true))
-            const Tooltip(message: 'Telegram\'dan yuklanadi',
-              child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Text('✈️', style: TextStyle(fontSize: 16)))),
+            const Tooltip(message: 'Telegram\'dan',
+                child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Text('✈️', style: TextStyle(fontSize: 16)))),
           if (widget.type == 'video' && (data.tgVideoId?.isNotEmpty == true))
-            const Tooltip(message: 'Telegram\'dan yuklanadi',
-              child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: Text('✈️', style: TextStyle(fontSize: 16)))),
+            const Tooltip(message: 'Telegram\'dan',
+                child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Text('✈️', style: TextStyle(fontSize: 16)))),
           if (widget.type == 'pdf' && _isPdfNative && _pdfController != null)
             IconButton(
               onPressed: _togglePdfRotate,
@@ -518,7 +553,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     );
   }
 
-  Widget _buildFullScreenView() {
+  Widget _buildFullScreen() {
     final data = ref.read(moduleDataProvider);
     if (data == null) return const SizedBox();
     return Container(
@@ -528,8 +563,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           _buildContent(data),
           if (widget.type == 'video')
             Positioned(top: 0, right: 0,
-              child: PointerInterceptor(
-                child: Container(width: 70, height: 70, color: Colors.transparent))),
+                child: PointerInterceptor(
+                    child: Container(width: 70, height: 70, color: Colors.transparent))),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -550,11 +585,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildContent(dynamic data) {
-    // ── Loading ───────────────────────────────────────────
+    // ── Loading ─────────────────────────────────────────
     if (_isLoading &&
         _videoWebViewController == null &&
         _pdfWebViewController == null &&
-        _pdfController == null) {
+        _pdfController == null &&
+        _webUrl == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -563,7 +599,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             const SizedBox(height: 12),
             Text(
               (data.tgPdfId?.isNotEmpty == true || data.tgVideoId?.isNotEmpty == true)
-                  ? 'Telegram\'dan URL olinmoqda...'
+                  ? 'Telegram\'dan yuklanmoqda...'
                   : 'Yuklanmoqda...',
               style: const TextStyle(color: AppColors.textGray),
             ),
@@ -572,11 +608,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // ── Error ─────────────────────────────────────────────
+    // ── Error ────────────────────────────────────────────
     if (_errorMessage != null &&
         _pdfWebViewController == null &&
         _pdfController == null &&
-        _webUrl == null) {
+        _webUrl == null &&
+        _videoWebViewController == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -593,7 +630,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 onPressed: () {
                   setState(() {
                     _isLoading = true; _errorMessage = null;
-                    _isPdfNative = false; _pdfWebViewController = null;
+                    _isPdfNative = false;
+                    _pdfWebViewController = null;
+                    _videoWebViewController = null;
                     _webUrl = null;
                   });
                   if (widget.type == 'pdf') _initPdf(); else _initVideo();
@@ -608,17 +647,13 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // ── VIDEO ─────────────────────────────────────────────
+    // ── VIDEO ────────────────────────────────────────────
     if (widget.type == 'video') {
       if (_isWeb) {
         final url = _webUrl ?? '';
-        if (url.isEmpty) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.accent));
-        }
-        // Telegram to'g'ridan URL → <video> tag
-        // YouTube/Drive → iframe
+        if (url.isEmpty) return const Center(child: CircularProgressIndicator(color: AppColors.accent));
         return buildWebIframe(url, true,
-            isDirectVideo: _webIsVideo,
+            isDirectVideo: _webIsDirectVideo,
             key: ValueKey('vid_${data.artikul}_$url'));
       }
       if (_videoWebViewController != null) {
@@ -626,25 +661,22 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           children: [
             WebViewWidget(controller: _videoWebViewController!),
             Positioned(top: 0, right: 0,
-              child: PointerInterceptor(
-                child: Container(width: 70, height: 70, color: Colors.transparent))),
+                child: PointerInterceptor(
+                    child: Container(width: 70, height: 70, color: Colors.transparent))),
             Positioned(bottom: 0, left: 0, right: 0,
-              child: PointerInterceptor(
-                child: Container(height: 44, color: Colors.transparent))),
+                child: PointerInterceptor(
+                    child: Container(height: 44, color: Colors.transparent))),
           ],
         );
       }
       return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
-    // ── PDF ───────────────────────────────────────────────
+    // ── PDF ──────────────────────────────────────────────
     if (_isWeb) {
       final url = _webUrl ?? '';
-      if (url.isEmpty) {
-        return const Center(child: CircularProgressIndicator(color: AppColors.accent));
-      }
-      return buildWebIframe(url, false,
-          key: ValueKey('pdf_${data.artikul}_$url'));
+      if (url.isEmpty) return const Center(child: CircularProgressIndicator(color: AppColors.accent));
+      return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}_$url'));
     }
 
     if (_isPdfNative && _pdfController != null) {
@@ -665,8 +697,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         children: [
           WebViewWidget(controller: _pdfWebViewController!),
           Positioned(top: 0, right: 0,
-            child: PointerInterceptor(
-              child: Container(width: 80, height: 80, color: Colors.transparent))),
+              child: PointerInterceptor(
+                  child: Container(width: 80, height: 80, color: Colors.transparent))),
         ],
       );
     }
