@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-Widget buildWebIframe(String url, bool isVideo, {Key? key}) {
+Widget buildWebIframe(String url, bool isVideo, {
+  Key? key,
+  bool isDirectVideo = false,
+}) {
   return Stack(
     key: key,
     children: [
       _MobileWebView(url: url),
-      // Top-right shield for "Pop-out" (80x80 is enough)
       Positioned(
-        top: 0,
-        right: 0,
-        child: Container(
-          width: 80,
-          height: 80,
-          color: Colors.transparent,
-        ),
+        top: 0, right: 0,
+        child: Container(width: 80, height: 80, color: Colors.transparent),
       ),
     ],
   );
@@ -36,7 +33,7 @@ class _MobileWebViewState extends State<_MobileWebView> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white) // Fixed: White for clarity
+      ..setBackgroundColor(Colors.white)
       ..loadRequest(Uri.parse(widget.url));
   }
 
