@@ -1060,6 +1060,7 @@ async function uploadFile(type) {
       fileBase64: b64.split(',')[1],
       fileName: f.name,
       mimeType: f.type || 'application/octet-stream',
+      fileType: type,
     });
     bar.style.width = '100%';
 
@@ -1175,9 +1176,9 @@ async function delModule() {
 }
 
 // Close on backdrop
-document.getElementById('mod-modal').addEventListener('click', e => {
-  if (e.target === document.getElementById('mod-modal')) closeModal();
-});
+//document.getElementById('mod-modal').addEventListener('click', e => {
+//  if (e.target === document.getElementById('mod-modal')) closeModal();
+//});
 
 // ═══════════════════════════════════════════
 //  FURNITURA EDITOR
