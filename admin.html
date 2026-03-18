@@ -15,18 +15,26 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 
 /* Login */
 #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:380px;text-align:center}
-.login-box h1{font-size:24px;margin-bottom:8px}
-.login-box p{color:var(--muted);font-size:14px;margin-bottom:28px}
-.login-box .logo{font-size:48px;margin-bottom:16px}
-#login-err{color:#ff7b72;font-size:13px;margin-top:12px;display:none}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:40px;width:100%;max-width:360px;text-align:center}
+.login-box .logo{font-size:52px;margin-bottom:16px}
+.login-box h1{font-size:24px;margin-bottom:6px}
+.login-box .sub{color:var(--muted);font-size:13px;margin-bottom:28px}
+.login-box .api-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(31,111,235,.1);border:1px solid rgba(31,111,235,.25);
+  border-radius:8px;padding:8px 12px;margin-bottom:20px;
+  font-size:11px;color:var(--muted);word-break:break-all;text-align:left;width:100%
+}
+.login-box .api-badge span{color:#79c0ff;font-weight:600;flex-shrink:0}
+#login-err{color:#ff7b72;font-size:13px;margin-top:10px;display:none}
 
 /* Layout */
 #app{display:none}
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;
   display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 header .brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
-header .brand span{background:var(--primary);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
+header .brand .v{background:var(--primary);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
 .container{max-width:1100px;margin:0 auto;padding:24px}
 
 /* Buttons */
@@ -44,7 +52,7 @@ header .brand span{background:var(--primary);color:#fff;border-radius:6px;paddin
 label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
 input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);
   border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;transition:.15s}
-input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
 input::placeholder{color:var(--muted)}
 
 /* Module grid */
@@ -113,7 +121,8 @@ input::placeholder{color:var(--muted)}
 .empty .eicon{font-size:48px;margin-bottom:12px}
 .search-bar{display:flex;gap:8px;margin-bottom:16px}
 .search-bar input{flex:1}
-.conn{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.conn{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+  border-radius:20px;font-size:11px;font-weight:600}
 .conn-ok{background:rgba(35,134,54,.2);color:#56d364}
 .conn-err{background:rgba(218,54,51,.2);color:#ff7b72}
 .conn-wait{background:rgba(139,148,158,.15);color:var(--muted)}
@@ -122,33 +131,35 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- ─── LOGIN ──────────────────────────────────────────────── -->
 <div id="login-screen">
   <div class="login-box">
     <div class="logo">📦</div>
     <h1>Cabix Admin</h1>
-    <p>Apps Script URL va parol kiriting</p>
-    <div class="form-group" style="text-align:left">
-      <label>Apps Script Web App URL</label>
-      <input id="inp-url" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+    <p class="sub">Kirish uchun parol kiriting</p>
+
+    <!-- API URL ko'rsatgich (o'zgartirib bo'lmaydi) -->
+    <div class="api-badge">
+      <span>🔗</span>
+      <span id="api-display"></span>
     </div>
+
     <div class="form-group" style="text-align:left">
       <label>Parol</label>
       <input id="inp-pass" type="password" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter')doLogin()">
+        onkeydown="if(event.key==='Enter') doLogin()">
     </div>
-    <button class="btn btn-primary" style="width:100%;padding:12px" id="login-btn" onclick="doLogin()">
-      Kirish
-    </button>
+    <button class="btn btn-primary" style="width:100%;padding:12px"
+      id="login-btn" onclick="doLogin()">Kirish</button>
     <p id="login-err"></p>
   </div>
 </div>
 
-<!-- APP -->
+<!-- ─── APP ────────────────────────────────────────────────── -->
 <div id="app">
   <header>
     <div class="brand">
-      📦 Cabix Admin <span>v4</span>
+      📦 Cabix Admin <span class="v">v4</span>
       <span class="conn conn-wait" id="conn-badge">⏳</span>
     </div>
     <div style="display:flex;gap:8px">
@@ -161,11 +172,13 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
       <input id="search" placeholder="🔍 Artikul yoki nomi..." oninput="filterModules()">
       <button class="btn btn-ghost" onclick="loadModules()">🔄</button>
     </div>
-    <div id="mod-list"><div class="empty"><div class="eicon">⏳</div><p>Yuklanmoqda...</p></div></div>
+    <div id="mod-list">
+      <div class="empty"><div class="eicon">⏳</div><p>Yuklanmoqda...</p></div>
+    </div>
   </div>
 </div>
 
-<!-- MODAL -->
+<!-- ─── MODAL ──────────────────────────────────────────────── -->
 <div class="modal-bg" id="mod-modal">
   <div class="modal">
     <div class="modal-header">
@@ -197,9 +210,12 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
               <p>PDF tanlang yoki tashlang</p>
               <div class="file-name" id="pdf-fname"></div>
             </div>
-            <div class="upload-progress" id="pdf-prog"><div class="upload-bar" id="pdf-bar" style="width:0"></div></div>
+            <div class="upload-progress" id="pdf-prog">
+              <div class="upload-bar" id="pdf-bar" style="width:0"></div>
+            </div>
             <div class="upload-status" id="pdf-stat"></div>
-            <button class="btn btn-accent btn-sm" style="margin-top:6px" onclick="uploadFile('pdf')">📤 Telegram'ga yuklash</button>
+            <button class="btn btn-accent btn-sm" style="margin-top:6px"
+              onclick="uploadFile('pdf')">📤 Telegram'ga yuklash</button>
           </div>
         </div>
         <div>
@@ -226,9 +242,12 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
               <p>Video tanlang yoki tashlang</p>
               <div class="file-name" id="video-fname"></div>
             </div>
-            <div class="upload-progress" id="video-prog"><div class="upload-bar" id="video-bar" style="width:0"></div></div>
+            <div class="upload-progress" id="video-prog">
+              <div class="upload-bar" id="video-bar" style="width:0"></div>
+            </div>
             <div class="upload-status" id="video-stat"></div>
-            <button class="btn btn-accent btn-sm" style="margin-top:6px" onclick="uploadFile('video')">📤 Telegram'ga yuklash</button>
+            <button class="btn btn-accent btn-sm" style="margin-top:6px"
+              onclick="uploadFile('video')">📤 Telegram'ga yuklash</button>
           </div>
         </div>
         <div>
@@ -245,7 +264,9 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
 
       <hr class="sep">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <h4 class="sec" style="margin:0">🔧 Furnituralar <span id="fur-count" style="color:var(--accent)"></span></h4>
+        <h4 class="sec" style="margin:0">🔧 Furnituralar
+          <span id="fur-count" style="color:var(--accent)"></span>
+        </h4>
         <button class="btn btn-ghost btn-sm" onclick="addCategory()">＋ Kategoriya</button>
       </div>
       <div id="fur-editor"></div>
@@ -253,8 +274,8 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Bekor</button>
-      <button class="btn btn-danger btn-sm" id="btn-del" style="display:none;margin-right:auto"
-        onclick="deleteModule()">🗑 O'chirish</button>
+      <button class="btn btn-danger btn-sm" id="btn-del"
+        style="display:none;margin-right:auto" onclick="deleteModule()">🗑 O'chirish</button>
       <button class="btn btn-primary" id="btn-save" onclick="saveModule()">💾 Saqlash</button>
     </div>
   </div>
@@ -263,34 +284,47 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
 <div id="toast"></div>
 
 <script>
-// ── State ─────────────────────────────────────────────────────
-let API = '', PWD = '', modules = [], editing = null;
+// ═══════════════════════════════════════════════════════════
+//  HARDCODED API URL — api_repository.dart bilan bir xil
+// ═══════════════════════════════════════════════════════════
+const API = 'https://script.google.com/macros/s/AKfycbxlNd85TBCBhMXUx-dWQ3dfGqLvIK-njvwXE0Nltt07My5uFvIQh90R_VZLL34ZjZacLQ/execc';
+
+// URL ni login ekranida ko'rsatish (qisqartirilgan)
+document.getElementById('api-display').textContent =
+  API.replace('https://script.google.com/macros/s/', '').replace('/exec', '').slice(0,28) + '...';
+
+// ── State ─────────────────────────────────────────────────
+let PWD = '', modules = [], editing = null;
 let selFiles = { pdf: null, video: null };
 
-// ── Auth ─────────────────────────────────────────────────────
+// ── Auth ──────────────────────────────────────────────────
 async function doLogin() {
-  const url  = document.getElementById('inp-url').value.trim();
-  const pass = document.getElementById('inp-pass').value.trim();
+  const pass  = document.getElementById('inp-pass').value.trim();
   const errEl = document.getElementById('login-err');
   errEl.style.display = 'none';
 
-  if (!url || !pass) { showErr('URL va parolni kiriting'); return; }
-  if (!url.includes('script.google.com')) { showErr('Apps Script exec URL kerak'); return; }
+  if (!pass) { showErr('Parol kiriting'); return; }
 
   const btn = document.getElementById('login-btn');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Ulanmoqda...';
 
-  API = url; PWD = pass;
+  PWD = pass;
   try {
-    const d = await get({ action: 'ping' });
+    const d = await apiGet({ action: 'ping' });
     if (d.error) throw new Error(d.error);
-  } catch(e) { showErr('Ulanmadi: ' + e.message); btn.disabled=false; btn.innerHTML='Kirish'; API=''; return; }
+  } catch (e) {
+    showErr('Xato: ' + e.message);
+    btn.disabled = false; btn.innerHTML = 'Kirish';
+    PWD = ''; return;
+  }
 
-  localStorage.setItem('cx_url', url);
-  localStorage.setItem('cx_pw',  pass);
+  // Parolni saqlab qo'yish (keyingi kirish uchun)
+  localStorage.setItem('cx_pw', pass);
+
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  btn.disabled=false; btn.innerHTML='Kirish';
+  btn.disabled = false; btn.innerHTML = 'Kirish';
   setConn(true);
   loadModules();
 }
@@ -299,63 +333,72 @@ function showErr(m) {
   const el = document.getElementById('login-err');
   el.textContent = '❌ ' + m; el.style.display = 'block';
 }
-function logout() { localStorage.clear(); location.reload(); }
+
+function logout() {
+  localStorage.removeItem('cx_pw');
+  location.reload();
+}
+
 function setConn(ok) {
   const el = document.getElementById('conn-badge');
   el.className = 'conn ' + (ok ? 'conn-ok' : 'conn-err');
   el.textContent = ok ? '✅ Ulangan' : '❌ Ulanmagan';
 }
 
+// Saqlangan parol bilan avtomatik kirish
 window.onload = () => {
-  const url = localStorage.getItem('cx_url');
-  const pw  = localStorage.getItem('cx_pw');
-  if (url && pw) {
-    document.getElementById('inp-url').value = url;
+  const pw = localStorage.getItem('cx_pw');
+  if (pw) {
     document.getElementById('inp-pass').value = pw;
     doLogin();
   }
+
   // Drag & drop
-  ['pdf','video'].forEach(t => {
-    const d = document.getElementById(t+'-drop');
+  ['pdf', 'video'].forEach(t => {
+    const d = document.getElementById(t + '-drop');
     d.addEventListener('dragover',  e => { e.preventDefault(); d.classList.add('drag'); });
     d.addEventListener('dragleave', () => d.classList.remove('drag'));
     d.addEventListener('drop', e => {
       e.preventDefault(); d.classList.remove('drag');
       const f = e.dataTransfer.files[0];
-      if (f) { selFiles[t]=f; document.getElementById(t+'-fname').textContent='📎 '+f.name; }
+      if (f) { selFiles[t] = f; document.getElementById(t + '-fname').textContent = '📎 ' + f.name; }
     });
   });
 };
 
-// ── API ───────────────────────────────────────────────────────
-async function get(params) {
+// ── API ───────────────────────────────────────────────────
+async function apiGet(params) {
   const qs = new URLSearchParams({ password: PWD, ...params });
-  const r = await fetch(`${API}?${qs}`);
-  const t = await r.text();
-  try { return JSON.parse(t); } catch { throw new Error(t.slice(0,120)); }
-}
-async function post(body) {
-  const r = await fetch(API, { method:'POST', body: JSON.stringify({ ...body, password: PWD }) });
-  const t = await r.text();
-  try { return JSON.parse(t); } catch { throw new Error(t.slice(0,120)); }
+  const r  = await fetch(`${API}?${qs}`);
+  const t  = await r.text();
+  try { return JSON.parse(t); } catch { throw new Error(t.slice(0, 120)); }
 }
 
-// ── Modules list ──────────────────────────────────────────────
+async function apiPost(body) {
+  const r = await fetch(API, {
+    method: 'POST',
+    body: JSON.stringify({ ...body, password: PWD }),
+  });
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { throw new Error(t.slice(0, 120)); }
+}
+
+// ── Modules ───────────────────────────────────────────────
 async function loadModules() {
   document.getElementById('mod-list').innerHTML =
     '<div class="empty"><div class="eicon">⏳</div><p>Yuklanmoqda...</p></div>';
   try {
-    const d = await get({ action:'modules' });
-    if (d.error) { toast(d.error,'err'); setConn(false); return; }
+    const d = await apiGet({ action: 'modules' });
+    if (d.error) { toast(d.error, 'err'); setConn(false); return; }
     modules = Array.isArray(d) ? d : [];
     renderList(modules); setConn(true);
-  } catch(e) { toast(e.message,'err'); setConn(false); }
+  } catch (e) { toast(e.message, 'err'); setConn(false); }
 }
 
 function filterModules() {
   const q = document.getElementById('search').value.toLowerCase();
   renderList(modules.filter(m =>
-    m.artikul.toLowerCase().includes(q) || (m.nomi||'').toLowerCase().includes(q)
+    m.artikul.toLowerCase().includes(q) || (m.nomi || '').toLowerCase().includes(q)
   ));
 }
 
@@ -368,113 +411,118 @@ function renderList(list) {
   el.innerHTML = '<div class="module-grid">' + list.map(m => `
     <div class="module-card" onclick="openModal('${esc(m.artikul)}')">
       <div class="art">${esc(m.artikul)}</div>
-      <div class="nom">${esc(m.nomi||'—')}</div>
+      <div class="nom">${esc(m.nomi || '—')}</div>
       <div class="badges">
-        ${m.tgPdfId ? '<span class="badge badge-green">📄 TG PDF</span>'
-          : m.pdfUrl ? '<span class="badge badge-blue">📄 Drive</span>'
-          : '<span class="badge badge-gray">PDF yo\'q</span>'}
-        ${m.tgVideoId ? '<span class="badge badge-green">🎬 TG Video</span>'
-          : m.videoUrl ? '<span class="badge badge-blue">🎬 Drive</span>'
-          : '<span class="badge badge-gray">Video yo\'q</span>'}
-        <span class="badge badge-gray">${Object.keys(m.furnituralar||{}).length} kat.</span>
+        ${m.tgPdfId
+          ? '<span class="badge badge-green">📄 TG PDF</span>'
+          : m.pdfUrl
+            ? '<span class="badge badge-blue">📄 Drive</span>'
+            : '<span class="badge badge-gray">PDF yo\'q</span>'}
+        ${m.tgVideoId
+          ? '<span class="badge badge-green">🎬 TG Video</span>'
+          : m.videoUrl
+            ? '<span class="badge badge-blue">🎬 Drive</span>'
+            : '<span class="badge badge-gray">Video yo\'q</span>'}
+        <span class="badge badge-gray">${Object.keys(m.furnituralar || {}).length} kat.</span>
       </div>
     </div>`).join('') + '</div>';
 }
 
-// ── File upload ───────────────────────────────────────────────
+// ── File upload ───────────────────────────────────────────
 function fileSelected(inp, type) {
   const f = inp.files[0]; if (!f) return;
   selFiles[type] = f;
-  document.getElementById(type+'-fname').textContent =
-    `📎 ${f.name} (${(f.size/1024/1024).toFixed(1)} MB)`;
+  document.getElementById(type + '-fname').textContent =
+    `📎 ${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`;
 }
 
 async function uploadFile(type) {
   const f = selFiles[type];
-  if (!f) { toast('Avval fayl tanlang','warn'); return; }
-  if (f.size > 50*1024*1024) { toast('Fayl 50MB dan katta!','err'); return; }
+  if (!f) { toast('Avval fayl tanlang', 'warn'); return; }
+  if (f.size > 50 * 1024 * 1024) { toast('Fayl 50MB dan katta!', 'err'); return; }
 
-  const prog = document.getElementById(type+'-prog');
-  const bar  = document.getElementById(type+'-bar');
-  const stat = document.getElementById(type+'-stat');
+  const prog = document.getElementById(type + '-prog');
+  const bar  = document.getElementById(type + '-bar');
+  const stat = document.getElementById(type + '-stat');
 
-  prog.style.display='block'; bar.style.width='10%';
-  stat.textContent='⏳ O\'girish...'; stat.style.color='var(--muted)';
+  prog.style.display = 'block'; bar.style.width = '10%';
+  stat.textContent = '⏳ O\'girish...'; stat.style.color = 'var(--muted)';
 
   try {
     const b64 = await toBase64(f);
-    bar.style.width='40%'; stat.textContent='⏳ Telegram\'ga yuklanyapti...';
-
-    const r = await post({
-      action:'upload_file',
+    bar.style.width = '40%'; stat.textContent = '⏳ Telegram\'ga yuklanyapti...';
+    const r = await apiPost({
+      action: 'upload_file',
       fileBase64: b64.split(',')[1],
       fileName: f.name,
       mimeType: f.type || 'application/octet-stream',
     });
-    bar.style.width='100%';
-
+    bar.style.width = '100%';
     if (r.ok && r.file_id) {
-      stat.textContent='✅ Yuklandi!'; stat.style.color='#56d364';
-      document.getElementById(type==='pdf'?'f-tgPdfId':'f-tgVideoId').value = r.file_id;
-      toast((type==='pdf'?'PDF':'Video')+' Telegram\'ga yuklandi ✅','ok');
-      selFiles[type]=null;
+      stat.textContent = '✅ Yuklandi!'; stat.style.color = '#56d364';
+      document.getElementById(type === 'pdf' ? 'f-tgPdfId' : 'f-tgVideoId').value = r.file_id;
+      toast((type === 'pdf' ? 'PDF' : 'Video') + ' Telegram\'ga yuklandi ✅', 'ok');
+      selFiles[type] = null;
     } else {
-      stat.textContent='❌ '+(r.error||'Xato'); stat.style.color='#ff7b72';
-      toast(r.error||'Yuklash xatosi','err');
+      stat.textContent = '❌ ' + (r.error || 'Xato'); stat.style.color = '#ff7b72';
+      toast(r.error || 'Yuklash xatosi', 'err');
     }
-  } catch(e) { stat.textContent='❌ '+e.message; stat.style.color='#ff7b72'; toast(e.message,'err'); }
+  } catch (e) {
+    stat.textContent = '❌ ' + e.message; stat.style.color = '#ff7b72';
+    toast(e.message, 'err');
+  }
 }
 
 function toBase64(f) {
-  return new Promise((res,rej) => {
+  return new Promise((res, rej) => {
     const r = new FileReader();
-    r.onload = () => res(r.result);
+    r.onload  = () => res(r.result);
     r.onerror = () => rej(new Error('Fayl o\'qilmadi'));
     r.readAsDataURL(f);
   });
 }
 
-// ── Modal ─────────────────────────────────────────────────────
-function openModal(artikul=null) {
+// ── Modal ─────────────────────────────────────────────────
+function openModal(artikul = null) {
   editing = artikul;
-  selFiles = { pdf:null, video:null };
-  ['pdf','video'].forEach(t => {
-    document.getElementById(t+'-fname').textContent='';
-    document.getElementById(t+'-prog').style.display='none';
-    document.getElementById(t+'-bar').style.width='0';
-    document.getElementById(t+'-stat').textContent='';
+  selFiles = { pdf: null, video: null };
+  ['pdf', 'video'].forEach(t => {
+    document.getElementById(t + '-fname').textContent = '';
+    document.getElementById(t + '-prog').style.display = 'none';
+    document.getElementById(t + '-bar').style.width = '0';
+    document.getElementById(t + '-stat').textContent = '';
   });
   document.getElementById('mod-modal').classList.add('open');
 
   if (artikul) {
-    const m = modules.find(x => x.artikul===artikul);
+    const m = modules.find(x => x.artikul === artikul);
     if (!m) return;
-    document.getElementById('modal-title').textContent='Tahrirlash';
-    document.getElementById('btn-del').style.display='block';
-    setVal('f-artikul', m.artikul);
-    setVal('f-nomi',    m.nomi||'');
-    setVal('f-tgPdfId', m.tgPdfId||'');
-    setVal('f-tgVideoId',m.tgVideoId||'');
-    setVal('f-pdfUrl',  m.pdfUrl||'');
-    setVal('f-videoUrl',m.videoUrl||'');
-    renderFurEditor(m.furnituralar||{});
+    document.getElementById('modal-title').textContent = 'Tahrirlash';
+    document.getElementById('btn-del').style.display = 'block';
+    sv('f-artikul',  m.artikul);
+    sv('f-nomi',     m.nomi       || '');
+    sv('f-tgPdfId',  m.tgPdfId   || '');
+    sv('f-tgVideoId',m.tgVideoId || '');
+    sv('f-pdfUrl',   m.pdfUrl    || '');
+    sv('f-videoUrl', m.videoUrl  || '');
+    renderFurEditor(m.furnituralar || {});
   } else {
-    document.getElementById('modal-title').textContent='Modul qo\'shish';
-    document.getElementById('btn-del').style.display='none';
+    document.getElementById('modal-title').textContent = 'Modul qo\'shish';
+    document.getElementById('btn-del').style.display = 'none';
     ['f-artikul','f-nomi','f-tgPdfId','f-tgVideoId','f-pdfUrl','f-videoUrl']
-      .forEach(id => setVal(id,''));
+      .forEach(id => sv(id, ''));
     renderFurEditor({});
   }
 }
+
 function closeModal() {
   document.getElementById('mod-modal').classList.remove('open');
 }
-function setVal(id,v) { document.getElementById(id).value=v; }
+function sv(id, v) { document.getElementById(id).value = v; }
 
 async function saveModule() {
   const artikul = document.getElementById('f-artikul').value.trim();
-  if (!artikul) { toast('Artikul kiritilmagan!','err'); return; }
-
+  if (!artikul) { toast('Artikul kiritilmagan!', 'err'); return; }
   const module = {
     artikul,
     nomi:       document.getElementById('f-nomi').value.trim(),
@@ -484,90 +532,91 @@ async function saveModule() {
     videoUrl:   document.getElementById('f-videoUrl').value.trim(),
     furnituralar: collectFur(),
   };
-
   const btn = document.getElementById('btn-save');
-  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Saqlanmoqda...';
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saqlanmoqda...';
   try {
-    const r = await post({ action:'save_module', module });
-    if (r.ok) { toast(`"${artikul}" saqlandi ✅`,'ok'); closeModal(); loadModules(); }
-    else toast(r.error||'Xato','err');
-  } catch(e) { toast(e.message,'err'); }
-  finally { btn.disabled=false; btn.innerHTML='💾 Saqlash'; }
+    const r = await apiPost({ action: 'save_module', module });
+    if (r.ok) { toast(`"${artikul}" saqlandi ✅`, 'ok'); closeModal(); loadModules(); }
+    else toast(r.error || 'Xato', 'err');
+  } catch (e) { toast(e.message, 'err'); }
+  finally { btn.disabled = false; btn.innerHTML = '💾 Saqlash'; }
 }
 
 async function deleteModule() {
   if (!editing) return;
   if (!confirm(`"${editing}" ni o'chirasizmi?`)) return;
   try {
-    const r = await post({ action:'delete_module', artikul: editing });
-    if (r.ok) { toast(`"${editing}" o'chirildi`,'ok'); closeModal(); loadModules(); }
-    else toast(r.error,'err');
-  } catch(e) { toast(e.message,'err'); }
+    const r = await apiPost({ action: 'delete_module', artikul: editing });
+    if (r.ok) { toast(`"${editing}" o'chirildi`, 'ok'); closeModal(); loadModules(); }
+    else toast(r.error, 'err');
+  } catch (e) { toast(e.message, 'err'); }
 }
 
-// ── Furnitura editor ──────────────────────────────────────────
+// ── Furnitura editor ──────────────────────────────────────
 function renderFurEditor(data) {
-  document.getElementById('fur-editor').innerHTML='';
-  Object.entries(data).forEach(([k,v]) => addCategory(k,v));
+  document.getElementById('fur-editor').innerHTML = '';
+  Object.entries(data).forEach(([k, v]) => addCategory(k, v));
   updateFurCount();
 }
 function updateFurCount() {
-  let n = 0;
-  document.querySelectorAll('.fur-row').forEach(() => n++);
+  const n = document.querySelectorAll('.fur-row').length;
   document.getElementById('fur-count').textContent = n ? `(${n} ta)` : '';
 }
-function addCategory(name='', items=[]) {
+function addCategory(name = '', items = []) {
   const el  = document.getElementById('fur-editor');
-  const cid = 'c'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  const cid = 'c' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const div = document.createElement('div');
-  div.className='fur-category'; div.id=cid;
-  div.innerHTML=`
+  div.className = 'fur-category'; div.id = cid;
+  div.innerHTML = `
     <div class="fur-cat-header">
       <input value="${esc(name)}" placeholder="Kategoriya nomi..." class="cat-nm">
       <button class="btn btn-ghost btn-sm" onclick="addItem('${cid}')">＋</button>
-      <button class="btn btn-danger btn-sm" onclick="document.getElementById('${cid}').remove();updateFurCount()">✕</button>
+      <button class="btn btn-danger btn-sm"
+        onclick="document.getElementById('${cid}').remove();updateFurCount()">✕</button>
     </div>
     <div class="fur-items" id="i_${cid}"></div>`;
   el.appendChild(div);
-  (items||[]).forEach(it => addItem(cid, it.nomi, it.ulchov, it.soni));
+  (items || []).forEach(it => addItem(cid, it.nomi, it.ulchov, it.soni));
 }
-function addItem(cid, nomi='', ulchov='', soni='') {
-  const c = document.getElementById('i_'+cid); if(!c) return;
-  const r = document.createElement('div'); r.className='fur-row';
-  r.innerHTML=`
+function addItem(cid, nomi = '', ulchov = '', soni = '') {
+  const c = document.getElementById('i_' + cid); if (!c) return;
+  const r = document.createElement('div'); r.className = 'fur-row';
+  r.innerHTML = `
     <input value="${esc(nomi)}"   placeholder="Nomi">
     <input value="${esc(ulchov)}" placeholder="O'lchov">
     <input value="${esc(soni)}"   placeholder="Soni" style="text-align:center">
-    <button class="btn btn-danger btn-sm" onclick="this.parentElement.remove();updateFurCount()">✕</button>`;
+    <button class="btn btn-danger btn-sm"
+      onclick="this.parentElement.remove();updateFurCount()">✕</button>`;
   c.appendChild(r); updateFurCount();
 }
 function collectFur() {
-  const res={};
+  const res = {};
   document.querySelectorAll('.fur-category').forEach(cat => {
-    const nm = cat.querySelector('.cat-nm').value.trim(); if(!nm) return;
-    const items=[];
+    const nm = cat.querySelector('.cat-nm').value.trim(); if (!nm) return;
+    const items = [];
     cat.querySelectorAll('.fur-row').forEach(row => {
       const inp = row.querySelectorAll('input');
       const n = inp[0].value.trim();
-      if(n) items.push({ nomi:n, ulchov:inp[1].value.trim(), soni:inp[2].value.trim() });
+      if (n) items.push({ nomi: n, ulchov: inp[1].value.trim(), soni: inp[2].value.trim() });
     });
-    res[nm]=items;
+    res[nm] = items;
   });
   return res;
 }
 
-// ── Utils ─────────────────────────────────────────────────────
-function toast(msg, type='ok') {
-  const el=document.getElementById('toast');
-  const it=document.createElement('div');
-  it.className=`toast-item toast-${type}`; it.textContent=msg;
-  el.appendChild(it); setTimeout(()=>it.remove(),3500);
+// ── Utils ─────────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  const it = document.createElement('div');
+  it.className = `toast-item toast-${type}`; it.textContent = msg;
+  el.appendChild(it); setTimeout(() => it.remove(), 3500);
 }
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 document.getElementById('mod-modal').addEventListener('click', e => {
-  if(e.target===document.getElementById('mod-modal')) closeModal();
+  if (e.target === document.getElementById('mod-modal')) closeModal();
 });
 </script>
 </body>
