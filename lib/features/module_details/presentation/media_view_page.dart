@@ -31,15 +31,18 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   String? _errorMessage;
 
   // PDF — ikki rejim
-  PdfController?    _pdfController;
+  PdfController?     _pdfController;
   WebViewController? _pdfWebViewController;
-  bool _isPdfNative = false;
+  bool _isPdfNative   = false;
   int  _pdfCurrentPage = 1;
   int  _pdfTotalPages  = 1;
   bool _isPdfLandscape = false;
 
   // Video — WebView
   WebViewController? _videoWebViewController;
+
+  // Web platform uchun URL (iframe src)
+  String? _webUrl;
 
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
@@ -113,23 +116,39 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   // ─── VIDEO ───────────────────────────────────────────────
   Future<void> _initVideo() async {
-    if (_isWeb) { if (mounted) setState(() => _isLoading = false); return; }
-
     final data = ref.read(moduleDataProvider);
     if (data == null) {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'Ma\'lumot yo\'q'; });
       return;
     }
 
+    // ── WEB PLATFORM ────────────────────────────────────────
+    if (_isWeb) {
+      String? url;
+
+      // 1. YouTube yoki Drive URL bor bo'lsa — bevosita ishlatamiz
+      if (data.videoUrl.isNotEmpty) {
+        url = _buildVideoEmbedUrl(data.videoUrl);
+      }
+      // 2. Telegram ID bor bo'lsa — proxy orqali URL olamiz
+      else if (data.tgVideoId.isNotEmpty && _isOnline) {
+        url = await _getTelegramUrl(data.tgVideoId);
+      }
+
+      if (mounted) setState(() {
+        _webUrl = url;
+        _isLoading = false;
+        if (url == null) _errorMessage = 'Video manbai topilmadi';
+      });
+      return;
+    }
+
+    // ── MOBILE PLATFORM ─────────────────────────────────────
     // 1. Telegram video (tgVideoId)
     if (data.tgVideoId.isNotEmpty && _isOnline) {
       final url = await _getTelegramUrl(data.tgVideoId);
-      if (url != null) {
-        _loadVideoWebView(url);
-        return;
-      }
+      if (url != null) { _loadVideoWebView(url); return; }
     }
-
     // 2. YouTube / Drive URL
     if (data.videoUrl.isNotEmpty) {
       _loadVideoWebView(_buildVideoEmbedUrl(data.videoUrl));
@@ -157,16 +176,42 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
   // ─── PDF ─────────────────────────────────────────────────
   Future<void> _initPdf() async {
-    if (_isWeb) { if (mounted) setState(() => _isLoading = false); return; }
-
     final data = ref.read(moduleDataProvider);
     if (data == null || !data.hasPdf) {
       if (mounted) setState(() { _isLoading = false; _errorMessage = 'PDF kiritilmagan'; });
       return;
     }
 
-    // 1. Keshni tekshirish (tgPdfId yoki Drive URL ga asoslanib)
-    final cacheKey = data.tgPdfId.isNotEmpty ? data.tgPdfId : data.pdfUrl;
+    // ── WEB PLATFORM ────────────────────────────────────────
+    if (_isWeb) {
+      String? url;
+
+      // 1. Drive URL bor bo'lsa — /preview iframe
+      if (data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
+        url = _buildDrivePreviewUrl(data.pdfUrl);
+      }
+      // 2. Telegram ID bor bo'lsa — proxy orqali to'g'ridan URL olamiz
+      else if (data.tgPdfId.isNotEmpty && _isOnline) {
+        url = await _getTelegramUrl(data.tgPdfId);
+      }
+      // 3. Boshqa URL (HTTP to'g'ridan)
+      else if (data.pdfUrl.isNotEmpty) {
+        url = data.pdfUrl;
+      }
+
+      if (mounted) setState(() {
+        _webUrl = url;
+        _isLoading = false;
+        if (url == null) _errorMessage = _isOnline
+            ? 'PDF manbai topilmadi'
+            : 'Offline: Internet kerak';
+      });
+      return;
+    }
+
+    // ── MOBILE PLATFORM ─────────────────────────────────────
+    // 1. Keshni tekshirish
+    final cacheKey  = data.tgPdfId.isNotEmpty ? data.tgPdfId : data.pdfUrl;
     final cacheFile = await _getCacheFile(cacheKey);
 
     if (await cacheFile.exists() && await cacheFile.length() > 1024) {
@@ -180,14 +225,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         });
         if (_isOnline) _tryDownloadPdfInBackground();
         return;
-      } catch (_) {
-        await cacheFile.delete();
-      }
+      } catch (_) { await cacheFile.delete(); }
     }
 
-    // 2. Telegram /preview WebView (darhol ko'rsatish uchun)
-    // Agar tgPdfId bo'lsa → preview URL yo'q, faqat download qilish kerak
-    // Drive bo'lsa → /preview WebView ko'rsatiladi
+    // 2. Drive WebView /preview (darhol ko'rsatish)
     if (data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
       _initPdfWebView(data.pdfUrl);
     } else if (data.tgPdfId.isEmpty && !_isOnline) {
@@ -197,11 +238,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       });
       return;
     } else {
-      // Telegram ID bilan yoki internet yo'q holda — faqat loading ko'rsatish
       if (mounted) setState(() => _isLoading = true);
     }
 
-    // 3. Fonda yuklab olish
     if (_isOnline) _tryDownloadPdfInBackground();
   }
 
@@ -229,17 +268,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (data == null) return;
 
     String? downloadUrl;
-
-    // Telegram prioritet
     if (data.tgPdfId.isNotEmpty) {
       downloadUrl = await _getTelegramUrl(data.tgPdfId);
     }
-
-    // Drive fallback
     if (downloadUrl == null && data.pdfUrl.isNotEmpty) {
       downloadUrl = _buildDriveDownloadUrl(data.pdfUrl);
     }
-
     if (downloadUrl == null) return;
 
     final cacheKey  = data.tgPdfId.isNotEmpty ? data.tgPdfId : data.pdfUrl;
@@ -281,15 +315,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     try {
       var response = await http.get(Uri.parse(url))
           .timeout(const Duration(seconds: 90));
-
-      // Drive virus-scan bypass
       final ct = response.headers['content-type'] ?? '';
       if (ct.contains('text/html')) {
         final body         = response.body;
         final uuidMatch    = RegExp(r'uuid=([^&>\s]+)').firstMatch(body);
         final confirmMatch = RegExp(r'confirm=([^&>\s]+)').firstMatch(body);
         final actionMatch  = RegExp(r'action="([^"]+)"').firstMatch(body);
-
         String newUrl = url;
         if (uuidMatch != null) {
           newUrl = '$url&uuid=${uuidMatch.group(1)}';
@@ -303,10 +334,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
               .timeout(const Duration(seconds: 90));
         }
       }
-
       if (response.statusCode == 200 && response.bodyBytes.length > 1024) {
         final bytes = response.bodyBytes;
-        // PDF magic bytes: %PDF
         if (bytes.length >= 4 &&
             bytes[0] == 0x25 && bytes[1] == 0x50 &&
             bytes[2] == 0x44 && bytes[3] == 0x46) {
@@ -373,22 +402,33 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       children: [
         const SizedBox(height: 10),
         _buildTopBar(data),
-        // Sahifa raqami — faqat native pdfx
         if (widget.type == 'pdf' && _isPdfNative && _pdfController != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text('$_pdfCurrentPage / $_pdfTotalPages',
                 style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ),
-        // Telegram yuklanmoqda indikatori
-        if (widget.type == 'pdf' && !_isPdfNative && _isOnline &&
+        if (widget.type == 'pdf' && _isWeb && _isLoading)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(width: 10, height: 10,
+                    child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray)),
+                SizedBox(width: 6),
+                Text('URL yuklanmoqda...', style: TextStyle(color: AppColors.textGray, fontSize: 11)),
+              ],
+            ),
+          ),
+        if (widget.type == 'pdf' && !_isWeb && !_isPdfNative && _isOnline &&
             (_pdfWebViewController != null || _isLoading))
           Padding(
             padding: const EdgeInsets.only(bottom: 2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 10, height: 10,
                   child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray),
                 ),
@@ -417,31 +457,19 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           if (!_isOnline)
             const Padding(padding: EdgeInsets.only(right: 4),
                 child: Icon(Icons.wifi_off, color: Colors.orange, size: 18)),
-          // Telegram belgisi
           if (widget.type == 'pdf' && (data.tgPdfId?.isNotEmpty == true))
-            const Tooltip(
-              message: 'Telegram\'dan yuklanadi',
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Text('✈️', style: TextStyle(fontSize: 16)),
-              ),
-            ),
+            const Tooltip(message: 'Telegram\'dan yuklanadi',
+              child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text('✈️', style: TextStyle(fontSize: 16)))),
           if (widget.type == 'video' && (data.tgVideoId?.isNotEmpty == true))
-            const Tooltip(
-              message: 'Telegram\'dan yuklanadi',
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 4),
-                child: Text('✈️', style: TextStyle(fontSize: 16)),
-              ),
-            ),
-          // Rotate — faqat native pdfx
+            const Tooltip(message: 'Telegram\'dan yuklanadi',
+              child: Padding(padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text('✈️', style: TextStyle(fontSize: 16)))),
           if (widget.type == 'pdf' && _isPdfNative && _pdfController != null)
             IconButton(
               onPressed: _togglePdfRotate,
               icon: Icon(
-                _isPdfLandscape
-                    ? Icons.stay_primary_portrait
-                    : Icons.stay_primary_landscape,
+                _isPdfLandscape ? Icons.stay_primary_portrait : Icons.stay_primary_landscape,
                 color: AppColors.primary,
               ),
               tooltip: 'Burish',
@@ -469,12 +497,9 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
         children: [
           _buildContent(data),
           if (widget.type == 'video')
-            Positioned(
-              top: 0, right: 0,
+            Positioned(top: 0, right: 0,
               child: PointerInterceptor(
-                child: Container(width: 70, height: 70, color: Colors.transparent),
-              ),
-            ),
+                child: Container(width: 70, height: 70, color: Colors.transparent))),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(12),
@@ -495,7 +520,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   }
 
   Widget _buildContent(dynamic data) {
-    // Loading
+    // ── Loading ───────────────────────────────────────────
     if (_isLoading &&
         _videoWebViewController == null &&
         _pdfWebViewController == null &&
@@ -507,8 +532,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             const CircularProgressIndicator(color: AppColors.accent),
             const SizedBox(height: 12),
             Text(
-              data.tgPdfId?.isNotEmpty == true || data.tgVideoId?.isNotEmpty == true
-                  ? 'Telegram\'dan yuklanmoqda...'
+              (data.tgPdfId?.isNotEmpty == true || data.tgVideoId?.isNotEmpty == true)
+                  ? 'Telegram\'dan URL olinmoqda...'
                   : 'Yuklanmoqda...',
               style: const TextStyle(color: AppColors.textGray),
             ),
@@ -517,10 +542,11 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // Error
+    // ── Error ─────────────────────────────────────────────
     if (_errorMessage != null &&
         _pdfWebViewController == null &&
-        _pdfController == null) {
+        _pdfController == null &&
+        _webUrl == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -538,6 +564,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                   setState(() {
                     _isLoading = true; _errorMessage = null;
                     _isPdfNative = false; _pdfWebViewController = null;
+                    _webUrl = null;
                   });
                   if (widget.type == 'pdf') _initPdf(); else _initVideo();
                 },
@@ -553,26 +580,25 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     // ── VIDEO ─────────────────────────────────────────────
     if (widget.type == 'video') {
+      // Web — iframe
       if (_isWeb) {
-        final url = _buildVideoEmbedUrl(data.videoUrl ?? '');
+        final url = _webUrl ?? '';
+        if (url.isEmpty) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.accent));
+        }
         return buildWebIframe(url, true, key: ValueKey('vid_${data.artikul}'));
       }
+      // Mobile — WebView
       if (_videoWebViewController != null) {
         return Stack(
           children: [
             WebViewWidget(controller: _videoWebViewController!),
-            Positioned(
-              top: 0, right: 0,
+            Positioned(top: 0, right: 0,
               child: PointerInterceptor(
-                child: Container(width: 70, height: 70, color: Colors.transparent),
-              ),
-            ),
-            Positioned(
-              bottom: 0, left: 0, right: 0,
+                child: Container(width: 70, height: 70, color: Colors.transparent))),
+            Positioned(bottom: 0, left: 0, right: 0,
               child: PointerInterceptor(
-                child: Container(height: 44, color: Colors.transparent),
-              ),
-            ),
+                child: Container(height: 44, color: Colors.transparent))),
           ],
         );
       }
@@ -580,11 +606,16 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
 
     // ── PDF ───────────────────────────────────────────────
+    // Web — iframe
     if (_isWeb) {
-      return buildWebIframe(data.pdfUrl ?? '', false, key: ValueKey('pdf_${data.artikul}'));
+      final url = _webUrl ?? '';
+      if (url.isEmpty) {
+        return const Center(child: CircularProgressIndicator(color: AppColors.accent));
+      }
+      return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
     }
 
-    // Native pdfx (yuklab olingandan keyin)
+    // Mobile native pdfx
     if (_isPdfNative && _pdfController != null) {
       return PdfView(
         controller: _pdfController!,
@@ -598,18 +629,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // Drive WebView /preview (darhol ko'rinishi uchun)
+    // Mobile Drive WebView /preview
     if (_pdfWebViewController != null) {
       return Stack(
         children: [
           WebViewWidget(controller: _pdfWebViewController!),
-          // "Open with" tugmasini bloklash
-          Positioned(
-            top: 0, right: 0,
+          Positioned(top: 0, right: 0,
             child: PointerInterceptor(
-              child: Container(width: 80, height: 80, color: Colors.transparent),
-            ),
-          ),
+              child: Container(width: 80, height: 80, color: Colors.transparent))),
         ],
       );
     }
