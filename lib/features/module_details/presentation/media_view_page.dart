@@ -30,25 +30,27 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
   bool _isLoading = true;
   String? _errorMessage;
 
-  // PDF — ikki rejim
+  // PDF — ikki rejim (mobile)
   PdfController?     _pdfController;
   WebViewController? _pdfWebViewController;
-  bool _isPdfNative   = false;
+  bool _isPdfNative    = false;
   int  _pdfCurrentPage = 1;
   int  _pdfTotalPages  = 1;
   bool _isPdfLandscape = false;
 
-  // Video — WebView
+  // Video — WebView (mobile)
   WebViewController? _videoWebViewController;
 
-  // Web platform uchun URL (iframe src)
+  // Web platform uchun iframe URL
   String? _webUrl;
+  bool    _webIsVideo = false; // video uchun <video> tag ishlatish
 
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySub;
 
   // ─── HELPERS ─────────────────────────────────────────────
   bool _isDriveUrl(String url)   => url.contains('drive.google.com');
   bool _isYoutubeUrl(String url) => url.contains('youtu.be') || url.contains('youtube.com');
+  bool _isTelegramUrl(String url)=> url.contains('api.telegram.org');
 
   String _extractDriveId(String url) =>
       RegExp(r'[-\w]{25,}').firstMatch(url)?.group(0) ?? '';
@@ -78,6 +80,12 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       return 'https://www.youtube.com/embed/$videoId?autoplay=0&rel=0&modestbranding=1&controls=1';
     }
     return url;
+  }
+
+  // Telegram PDF → Google Docs Viewer orqali ko'rsatish
+  String _buildDocsViewerUrl(String fileUrl) {
+    final encoded = Uri.encodeComponent(fileUrl);
+    return 'https://docs.google.com/viewer?url=$encoded&embedded=true';
   }
 
   String _buildVideoEmbedUrl(String url) {
@@ -125,18 +133,36 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     // ── WEB PLATFORM ────────────────────────────────────────
     if (_isWeb) {
       String? url;
+      bool isDirectVideo = false;
 
-      // 1. YouTube yoki Drive URL bor bo'lsa — bevosita ishlatamiz
-      if (data.videoUrl.isNotEmpty) {
-        url = _buildVideoEmbedUrl(data.videoUrl);
+      // 1. Telegram ID — prioritet (Drive/YouTube dan oldin)
+      if (data.tgVideoId.isNotEmpty && _isOnline) {
+        final tgUrl = await _getTelegramUrl(data.tgVideoId);
+        if (tgUrl != null && tgUrl.isNotEmpty) {
+          url = tgUrl;
+          isDirectVideo = true; // <video> tag ishlatamiz
+        }
       }
-      // 2. Telegram ID bor bo'lsa — proxy orqali URL olamiz
-      else if (data.tgVideoId.isNotEmpty && _isOnline) {
-        url = await _getTelegramUrl(data.tgVideoId);
+
+      // 2. YouTube embed
+      if (url == null && data.videoUrl.isNotEmpty && _isYoutubeUrl(data.videoUrl)) {
+        url = _buildYoutubeEmbedUrl(data.videoUrl);
+      }
+
+      // 3. Drive /preview iframe
+      if (url == null && data.videoUrl.isNotEmpty && _isDriveUrl(data.videoUrl)) {
+        url = _buildDrivePreviewUrl(data.videoUrl);
+      }
+
+      // 4. Boshqa URL
+      if (url == null && data.videoUrl.isNotEmpty) {
+        url = data.videoUrl;
+        isDirectVideo = true;
       }
 
       if (mounted) setState(() {
         _webUrl = url;
+        _webIsVideo = isDirectVideo;
         _isLoading = false;
         if (url == null) _errorMessage = 'Video manbai topilmadi';
       });
@@ -144,17 +170,14 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
 
     // ── MOBILE PLATFORM ─────────────────────────────────────
-    // 1. Telegram video (tgVideoId)
     if (data.tgVideoId.isNotEmpty && _isOnline) {
       final url = await _getTelegramUrl(data.tgVideoId);
       if (url != null) { _loadVideoWebView(url); return; }
     }
-    // 2. YouTube / Drive URL
     if (data.videoUrl.isNotEmpty) {
       _loadVideoWebView(_buildVideoEmbedUrl(data.videoUrl));
       return;
     }
-
     if (mounted) setState(() { _isLoading = false; _errorMessage = 'Video kiritilmagan'; });
   }
 
@@ -186,25 +209,33 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     if (_isWeb) {
       String? url;
 
-      // 1. Drive URL bor bo'lsa — /preview iframe
-      if (data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
+      // 1. Telegram ID — prioritet (har doim birinchi)
+      if (data.tgPdfId.isNotEmpty && _isOnline) {
+        final tgUrl = await _getTelegramUrl(data.tgPdfId);
+        if (tgUrl != null && tgUrl.isNotEmpty) {
+          // Telegram URL → Google Docs Viewer orqali ko'rsatamiz
+          url = _buildDocsViewerUrl(tgUrl);
+        }
+      }
+
+      // 2. Drive URL (faqat Telegram muvaffaqiyatsiz bo'lganda)
+      if (url == null && data.pdfUrl.isNotEmpty && _isDriveUrl(data.pdfUrl)) {
         url = _buildDrivePreviewUrl(data.pdfUrl);
       }
-      // 2. Telegram ID bor bo'lsa — proxy orqali to'g'ridan URL olamiz
-      else if (data.tgPdfId.isNotEmpty && _isOnline) {
-        url = await _getTelegramUrl(data.tgPdfId);
-      }
-      // 3. Boshqa URL (HTTP to'g'ridan)
-      else if (data.pdfUrl.isNotEmpty) {
-        url = data.pdfUrl;
+
+      // 3. Boshqa to'g'ridan URL
+      if (url == null && data.pdfUrl.isNotEmpty) {
+        url = _buildDocsViewerUrl(data.pdfUrl);
       }
 
       if (mounted) setState(() {
         _webUrl = url;
         _isLoading = false;
-        if (url == null) _errorMessage = _isOnline
-            ? 'PDF manbai topilmadi'
-            : 'Offline: Internet kerak';
+        if (url == null) {
+          _errorMessage = _isOnline
+              ? 'PDF manbai topilmadi'
+              : 'Offline: Internet kerak';
+        }
       });
       return;
     }
@@ -240,12 +271,10 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     } else {
       if (mounted) setState(() => _isLoading = true);
     }
-
     if (_isOnline) _tryDownloadPdfInBackground();
   }
 
   void _initPdfWebView(String url) {
-    final previewUrl = _buildDrivePreviewUrl(url);
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF525659))
@@ -259,7 +288,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
           }
         },
       ))
-      ..loadRequest(Uri.parse(previewUrl));
+      ..loadRequest(Uri.parse(_buildDrivePreviewUrl(url)));
     if (mounted && !_isPdfNative) setState(() => _pdfWebViewController = controller);
   }
 
@@ -304,7 +333,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
   }
 
-  // ─── PDF download ─────────────────────────────────────────
+  // ─── PDF download (mobile) ────────────────────────────────
   Future<File> _getCacheFile(String key) async {
     final dir      = await getTemporaryDirectory();
     final safeName = key.replaceAll(RegExp(r'[^\w]'), '_');
@@ -408,7 +437,7 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
             child: Text('$_pdfCurrentPage / $_pdfTotalPages',
                 style: const TextStyle(color: AppColors.textGray, fontSize: 12)),
           ),
-        if (widget.type == 'pdf' && _isWeb && _isLoading)
+        if (_isLoading && _isWeb)
           const Padding(
             padding: EdgeInsets.only(bottom: 4),
             child: Row(
@@ -417,7 +446,8 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
                 SizedBox(width: 10, height: 10,
                     child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.textGray)),
                 SizedBox(width: 6),
-                Text('URL yuklanmoqda...', style: TextStyle(color: AppColors.textGray, fontSize: 11)),
+                Text('Telegram\'dan URL yuklanmoqda...',
+                    style: TextStyle(color: AppColors.textGray, fontSize: 11)),
               ],
             ),
           ),
@@ -580,15 +610,17 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
 
     // ── VIDEO ─────────────────────────────────────────────
     if (widget.type == 'video') {
-      // Web — iframe
       if (_isWeb) {
         final url = _webUrl ?? '';
         if (url.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: AppColors.accent));
         }
-        return buildWebIframe(url, true, key: ValueKey('vid_${data.artikul}'));
+        // Telegram to'g'ridan URL → <video> tag
+        // YouTube/Drive → iframe
+        return buildWebIframe(url, true,
+            isDirectVideo: _webIsVideo,
+            key: ValueKey('vid_${data.artikul}_$url'));
       }
-      // Mobile — WebView
       if (_videoWebViewController != null) {
         return Stack(
           children: [
@@ -606,16 +638,15 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
     }
 
     // ── PDF ───────────────────────────────────────────────
-    // Web — iframe
     if (_isWeb) {
       final url = _webUrl ?? '';
       if (url.isEmpty) {
         return const Center(child: CircularProgressIndicator(color: AppColors.accent));
       }
-      return buildWebIframe(url, false, key: ValueKey('pdf_${data.artikul}'));
+      return buildWebIframe(url, false,
+          key: ValueKey('pdf_${data.artikul}_$url'));
     }
 
-    // Mobile native pdfx
     if (_isPdfNative && _pdfController != null) {
       return PdfView(
         controller: _pdfController!,
@@ -629,7 +660,6 @@ class _MediaViewPageState extends ConsumerState<MediaViewPage> {
       );
     }
 
-    // Mobile Drive WebView /preview
     if (_pdfWebViewController != null) {
       return Stack(
         children: [
