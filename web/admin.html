@@ -3,280 +3,801 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cabix Admin Panel</title>
+<title>Cabix Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
+/* ═══════════════════════════════════════════════
+   DESIGN SYSTEM — Industrial Dark + Amber
+═══════════════════════════════════════════════ */
 :root {
-  --bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;
-  --muted:#8b949e;--primary:#238636;--primary-h:#2ea043;
-  --accent:#1f6feb;--danger:#da3633;--warn:#d29922;--radius:10px;
+  --bg:        #0c0d0f;
+  --bg2:       #111215;
+  --bg3:       #16181c;
+  --border:    rgba(255,255,255,.07);
+  --border2:   rgba(255,255,255,.12);
+  --text:      #e8eaed;
+  --text2:     #9aa0ab;
+  --text3:     #5a6170;
+  --amber:     #f59e0b;
+  --amber-dim: rgba(245,158,11,.15);
+  --amber-glow:rgba(245,158,11,.08);
+  --green:     #10b981;
+  --green-dim: rgba(16,185,129,.15);
+  --red:       #ef4444;
+  --red-dim:   rgba(239,68,68,.13);
+  --blue:      #3b82f6;
+  --blue-dim:  rgba(59,130,246,.13);
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --r:    8px;
+  --shadow: 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,.4);
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{font-size:14px}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  line-height:1.5;
+}
 
-/* Login */
-#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.login-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:40px;width:100%;max-width:360px;text-align:center}
-.login-box .logo{font-size:52px;margin-bottom:16px}
-.login-box h1{font-size:24px;margin-bottom:6px}
-.login-box .sub{color:var(--muted);font-size:13px;margin-bottom:28px}
-.login-box .api-badge{
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* ─── ANIMATIONS ─────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:none;opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+
+/* ─── LOGIN ──────────────────────────────────── */
+#login-screen{
+  display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px;
+  background:var(--bg);
+  background-image:
+    radial-gradient(ellipse 600px 400px at 50% 0%, rgba(245,158,11,.04) 0%, transparent 70%);
+}
+.login-wrap{
+  width:100%;max-width:400px;
+  animation:fadeUp .5s ease;
+}
+.login-logo{
+  text-align:center;margin-bottom:40px;
+}
+.login-logo .icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:56px;height:56px;
+  background:var(--amber-dim);
+  border:1px solid rgba(245,158,11,.3);
+  border-radius:16px;
+  font-size:24px;
+  margin-bottom:16px;
+}
+.login-logo h1{
+  font-size:22px;font-weight:600;letter-spacing:-.3px;
+}
+.login-logo p{color:var(--text3);font-size:13px;margin-top:4px}
+
+.login-card{
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  padding:28px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+}
+.api-pill{
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:10px 12px;
+  margin-bottom:20px;
+  font-family:var(--mono);
+  font-size:10px;
+  color:var(--text3);
+  overflow:hidden;
+}
+.api-pill .dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--amber);
+  animation:pulse 2s infinite;
+  flex-shrink:0;
+}
+.api-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.field{margin-bottom:16px}
+.field label{
+  display:block;font-size:12px;font-weight:500;
+  color:var(--text3);margin-bottom:6px;letter-spacing:.3px;
+  text-transform:uppercase;
+}
+.field input{
+  width:100%;background:var(--bg2);
+  border:1px solid var(--border2);border-radius:var(--r);
+  color:var(--text);padding:11px 14px;font-size:14px;
+  font-family:var(--sans);outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.field input:focus{
+  border-color:var(--amber);
+  box-shadow:0 0 0 3px var(--amber-dim);
+}
+.field input::placeholder{color:var(--text3)}
+
+.btn-login{
+  width:100%;padding:12px;
+  background:var(--amber);color:#000;
+  border:none;border-radius:var(--r);
+  font-size:14px;font-weight:600;
+  font-family:var(--sans);cursor:pointer;
+  transition:opacity .15s,transform .1s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn-login:hover{opacity:.9}
+.btn-login:active{transform:scale(.99)}
+.btn-login:disabled{opacity:.5;cursor:not-allowed}
+#login-err{
+  margin-top:12px;padding:10px 12px;
+  background:var(--red-dim);border:1px solid rgba(239,68,68,.2);
+  border-radius:var(--r);font-size:13px;color:#fca5a5;
+  display:none;
+}
+
+/* ─── LAYOUT ─────────────────────────────────── */
+#app{display:none;min-height:100vh;flex-direction:column}
+#app.visible{display:flex}
+
+/* Header */
+.header{
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  padding:0 24px;
+  height:56px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.header-brand{
+  display:flex;align-items:center;gap:10px;
+  font-weight:600;font-size:15px;
+}
+.header-brand .box{
+  width:28px;height:28px;
+  background:var(--amber);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;color:#000;
+}
+.header-brand .ver{
+  font-family:var(--mono);font-size:10px;
+  color:var(--text3);background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:4px;padding:1px 6px;
+}
+.conn-dot{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:12px;color:var(--text3);
+}
+.conn-dot .dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--text3);
+}
+.conn-dot.ok .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn-dot.err .dot{background:var(--red)}
+.header-actions{display:flex;align-items:center;gap:8px}
+
+/* ─── BUTTONS ────────────────────────────────── */
+.btn{
   display:inline-flex;align-items:center;gap:6px;
-  background:rgba(31,111,235,.1);border:1px solid rgba(31,111,235,.25);
-  border-radius:8px;padding:8px 12px;margin-bottom:20px;
-  font-size:11px;color:var(--muted);word-break:break-all;text-align:left;width:100%
+  padding:7px 14px;border:none;border-radius:var(--r);
+  font-size:13px;font-weight:500;font-family:var(--sans);
+  cursor:pointer;transition:all .15s;white-space:nowrap;
 }
-.login-box .api-badge span{color:#79c0ff;font-weight:600;flex-shrink:0}
-#login-err{color:#ff7b72;font-size:13px;margin-top:10px;display:none}
-
-/* Layout */
-#app{display:none}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;
-  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-header .brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
-header .brand .v{background:var(--primary);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
-.container{max-width:1100px;margin:0 auto;padding:24px}
-
-/* Buttons */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;
-  border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s}
-.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-h)}
-.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{opacity:.85}
-.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{opacity:.85}
-.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--border)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-amber{background:var(--amber);color:#000}
+.btn-amber:hover:not(:disabled){opacity:.88}
+.btn-ghost{
+  background:transparent;color:var(--text2);
+  border:1px solid var(--border2);
+}
+.btn-ghost:hover:not(:disabled){background:var(--bg3);color:var(--text)}
+.btn-danger{background:var(--red-dim);color:#fca5a5;border:1px solid rgba(239,68,68,.25)}
+.btn-danger:hover:not(:disabled){background:rgba(239,68,68,.22)}
 .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
-.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-icon{
+  width:32px;height:32px;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--border);
+  border-radius:6px;font-size:14px;cursor:pointer;
+  color:var(--text2);transition:all .15s;
+}
+.btn-icon:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
 
-/* Forms */
-.form-group{margin-bottom:16px}
-label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
-input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);
-  border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;transition:.15s}
-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.15)}
-input::placeholder{color:var(--muted)}
+/* ─── MAIN ───────────────────────────────────── */
+.main{flex:1;max-width:1200px;width:100%;margin:0 auto;padding:24px}
 
-/* Module grid */
-.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.module-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:16px;cursor:pointer;transition:.15s}
-.module-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.module-card .art{font-size:18px;font-weight:700;margin-bottom:4px}
-.module-card .nom{color:var(--muted);font-size:13px;margin-bottom:12px}
-.module-card .badges{display:flex;gap:6px;flex-wrap:wrap}
-.badge{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
-.badge-green{background:rgba(35,134,54,.2);color:#56d364}
-.badge-blue{background:rgba(31,111,235,.2);color:#79c0ff}
-.badge-gray{background:rgba(139,148,158,.15);color:var(--muted)}
+/* Stats bar */
+.stats-bar{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:12px;margin-bottom:24px;
+}
+.stat{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px;
+  animation:fadeUp .4s ease both;
+}
+.stat:nth-child(1){animation-delay:.05s}
+.stat:nth-child(2){animation-delay:.1s}
+.stat:nth-child(3){animation-delay:.15s}
+.stat:nth-child(4){animation-delay:.2s}
+.stat .num{
+  font-size:28px;font-weight:600;
+  font-family:var(--mono);
+  color:var(--text);line-height:1;
+}
+.stat .lbl{font-size:11px;color:var(--text3);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat .bar{
+  height:2px;background:var(--border);
+  border-radius:2px;margin-top:10px;overflow:hidden;
+}
+.stat .bar-fill{height:100%;border-radius:2px;transition:width .6s ease}
+.stat-total .bar-fill{background:var(--amber)}
+.stat-pdf   .bar-fill{background:var(--green)}
+.stat-video .bar-fill{background:var(--blue)}
+.stat-fur   .bar-fill{background:var(--amber)}
 
-/* File upload */
-.file-drop{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;
-  cursor:pointer;transition:.15s;position:relative}
-.file-drop:hover,.file-drop.drag{border-color:var(--accent);background:rgba(31,111,235,.05)}
-.file-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
-.file-drop .dicon{font-size:28px;margin-bottom:6px}
-.file-drop p{font-size:12px;color:var(--muted)}
-.file-name{font-size:12px;color:var(--text);font-weight:500;margin-top:6px;word-break:break-all}
-.upload-progress{background:var(--bg);border-radius:6px;height:5px;overflow:hidden;margin-top:6px;display:none}
-.upload-bar{height:100%;background:var(--accent);transition:width .3s;border-radius:6px}
-.upload-status{font-size:11px;color:var(--muted);margin-top:4px;min-height:16px}
+/* Toolbar */
+.toolbar{
+  display:flex;align-items:center;gap:10px;margin-bottom:16px;
+  flex-wrap:wrap;
+}
+.search-wrap{
+  flex:1;min-width:200px;position:relative;
+}
+.search-wrap input{
+  width:100%;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text);padding:9px 14px 9px 36px;
+  font-size:13px;font-family:var(--sans);outline:none;
+  transition:border-color .15s;
+}
+.search-wrap input:focus{border-color:var(--amber)}
+.search-wrap .icon{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  color:var(--text3);font-size:14px;pointer-events:none;
+}
+.filter-pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;
+  border:1px solid var(--border);background:transparent;
+  color:var(--text2);cursor:pointer;transition:all .15s;
+}
+.pill.active{background:var(--amber-dim);border-color:rgba(245,158,11,.4);color:var(--amber)}
+.pill:hover:not(.active){background:var(--bg3)}
+.sort-sel{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text2);
+  padding:8px 12px;font-size:12px;font-family:var(--sans);
+  outline:none;cursor:pointer;
+}
+
+/* Module Grid */
+.mod-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:12px;
+}
+.mod-card{
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:0;
+  cursor:pointer;
+  transition:border-color .15s,transform .15s,box-shadow .15s;
+  overflow:hidden;
+  animation:fadeUp .3s ease both;
+  position:relative;
+}
+.mod-card:hover{
+  border-color:var(--border2);
+  transform:translateY(-2px);
+  box-shadow:0 8px 24px rgba(0,0,0,.3);
+}
+.mod-card .thumb{
+  height:80px;
+  background:var(--bg2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:28px;
+  border-bottom:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+.mod-card .thumb img{
+  width:100%;height:100%;object-fit:cover;
+}
+.mod-card .thumb .overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to bottom,transparent 40%,rgba(22,24,28,.8));
+}
+.mod-card .body{padding:14px}
+.mod-card .art{
+  font-family:var(--mono);font-size:15px;font-weight:600;
+  letter-spacing:.5px;margin-bottom:3px;
+}
+.mod-card .nom{
+  font-size:12px;color:var(--text2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-bottom:10px;
+}
+.mod-card .tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{
+  padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase;
+}
+.tag-tg   {background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.2)}
+.tag-drive{background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.2)}
+.tag-none {background:var(--bg);color:var(--text3);border:1px solid var(--border)}
+.mod-card .footer{
+  padding:10px 14px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.mod-card .fur-count{
+  font-size:11px;color:var(--text3);
+}
+.mod-card .edit-hint{
+  font-size:11px;color:var(--text3);
+  opacity:0;transition:opacity .15s;
+  display:flex;align-items:center;gap:3px;
+}
+.mod-card:hover .edit-hint{opacity:1}
+
+/* Empty state */
+.empty{
+  text-align:center;padding:80px 24px;
+  grid-column:1/-1;
+}
+.empty .ico{font-size:48px;margin-bottom:16px;opacity:.4}
+.empty p{color:var(--text3);font-size:14px}
+
+/* Skeleton */
+.skeleton{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:12px;height:160px;overflow:hidden;
+}
+.skeleton::after{
+  content:'';display:block;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.03),transparent);
+  background-size:200px 100%;
+  animation:shimmer 1.5s infinite;
+}
+
+/* ─── MODAL ──────────────────────────────────── */
+.modal-bg{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.75);
+  backdrop-filter:blur(4px);
+  z-index:200;overflow-y:auto;
+  padding:20px;
+  align-items:flex-start;justify-content:center;
+}
+.modal-bg.open{display:flex;animation:fadeIn .15s ease}
+.modal{
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:16px;
+  width:100%;max-width:800px;
+  box-shadow:0 32px 80px rgba(0,0,0,.7);
+  animation:fadeUp .2s ease;
+}
+.modal-head{
+  padding:20px 24px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-head h2{font-size:16px;font-weight:600}
+.modal-head .subtitle{font-size:12px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+.modal-body{
+  padding:24px;
+  max-height:calc(100vh - 180px);
+  overflow-y:auto;
+}
+.modal-foot{
+  padding:14px 24px;
+  border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+  justify-content:flex-end;
+  background:var(--bg3);
+  border-radius:0 0 16px 16px;
+}
+
+/* Grid layouts in modal */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field-group{margin-bottom:18px}
+.field-group label{
+  display:block;font-size:11px;font-weight:600;
+  color:var(--text3);margin-bottom:6px;
+  text-transform:uppercase;letter-spacing:.4px;
+}
+.field-group input{
+  width:100%;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--r);
+  color:var(--text);padding:9px 12px;
+  font-size:13px;font-family:var(--sans);outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.field-group input:focus{
+  border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);
+}
+.field-group input::placeholder{color:var(--text3)}
+.field-group input.mono{font-family:var(--mono);font-size:12px}
+
+/* Section divider */
+.sec-div{
+  display:flex;align-items:center;gap:10px;
+  margin:20px 0 16px;
+}
+.sec-div .sec-label{
+  font-size:11px;font-weight:600;
+  color:var(--text3);text-transform:uppercase;
+  letter-spacing:.5px;white-space:nowrap;
+}
+.sec-div .line{flex:1;height:1px;background:var(--border)}
+
+/* Upload area */
+.upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.upload-box{
+  background:var(--bg3);
+  border:1px dashed var(--border2);
+  border-radius:var(--r);
+  padding:16px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .15s;
+  position:relative;
+}
+.upload-box.drag,.upload-box:hover{
+  border-color:var(--amber);
+  background:var(--amber-glow);
+}
+.upload-box input[type=file]{
+  position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;
+}
+.upload-box .up-icon{font-size:22px;margin-bottom:6px;display:block}
+.upload-box .up-text{font-size:12px;color:var(--text3)}
+.upload-box .up-name{
+  font-size:11px;color:var(--amber);
+  margin-top:4px;word-break:break-all;font-family:var(--mono);
+}
+.upload-meta{margin-top:10px}
+.prog-wrap{
+  height:3px;background:var(--border);
+  border-radius:2px;overflow:hidden;margin-top:6px;display:none;
+}
+.prog-bar{height:100%;background:var(--amber);border-radius:2px;transition:width .3s}
+.up-stat{
+  font-size:11px;color:var(--text3);margin-top:4px;min-height:14px;
+  font-family:var(--mono);
+}
 
 /* Furnitura editor */
-.fur-category{background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
-.fur-cat-header{display:flex;align-items:center;gap:8px;padding:10px 12px;
-  background:rgba(255,255,255,.03);border-radius:8px 8px 0 0}
-.fur-cat-header input{flex:1;background:transparent;border:none;font-size:14px;
-  font-weight:600;color:var(--text);padding:0;outline:none}
-.fur-items{padding:6px 12px 8px}
-.fur-row{display:grid;grid-template-columns:1fr 110px 70px 30px;gap:6px;margin-bottom:5px;align-items:center}
-.fur-row input{font-size:13px;padding:5px 8px}
+.fur-editor{display:flex;flex-direction:column;gap:8px}
+.fur-cat{
+  background:var(--bg3);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+}
+.fur-cat-head{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 12px;
+  background:rgba(255,255,255,.02);
+  border-bottom:1px solid var(--border);
+}
+.fur-cat-head input{
+  flex:1;background:transparent;border:none;
+  font-size:13px;font-weight:600;
+  color:var(--text);padding:0;outline:none;
+  font-family:var(--sans);
+}
+.fur-items{padding:8px}
+.fur-row{
+  display:grid;
+  grid-template-columns:1fr 100px 64px 28px;
+  gap:6px;margin-bottom:5px;align-items:center;
+}
+.fur-row:last-child{margin-bottom:0}
+.fur-row input{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);
+  padding:6px 8px;font-size:12px;
+  font-family:var(--sans);outline:none;
+  transition:border-color .15s;width:100%;
+}
+.fur-row input:focus{border-color:var(--amber)}
+.fur-row .soni-inp{text-align:center;font-family:var(--mono)}
+.fur-empty{
+  padding:16px;text-align:center;
+  font-size:12px;color:var(--text3);
+}
 
-/* Modal */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;
-  overflow-y:auto;padding:20px}
-.modal-bg.open{display:flex;align-items:flex-start;justify-content:center}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  width:100%;max-width:740px}
-.modal-header{padding:20px 24px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between}
-.modal-header h2{font-size:18px}
-.modal-body{padding:24px;max-height:76vh;overflow-y:auto}
-.modal-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+/* Counter badge */
+.fur-cnt{
+  font-family:var(--mono);font-size:11px;
+  color:var(--amber);background:var(--amber-dim);
+  border-radius:4px;padding:1px 6px;margin-left:4px;
+}
 
 /* Toast */
-#toast{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
-.toast-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;
-  padding:12px 16px;font-size:14px;max-width:320px;animation:slideIn .2s ease}
-.toast-ok{border-left:3px solid var(--primary)}
-.toast-err{border-left:3px solid var(--danger)}
-.toast-warn{border-left:3px solid var(--warn)}
-@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
+#toast{
+  position:fixed;bottom:24px;right:24px;
+  z-index:9999;display:flex;flex-direction:column;gap:8px;
+}
+.toast{
+  display:flex;align-items:center;gap:10px;
+  background:var(--bg3);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:12px 16px;
+  font-size:13px;max-width:340px;
+  animation:slideIn .25s ease;
+  box-shadow:var(--shadow);
+}
+.toast-ok   .toast-dot{background:var(--green)}
+.toast-err  .toast-dot{background:var(--red)}
+.toast-warn .toast-dot{background:var(--amber)}
+.toast-dot{
+  width:7px;height:7px;border-radius:50%;flex-shrink:0;
+}
 
-/* Misc */
-.sep{border:none;border-top:1px solid var(--border);margin:20px 0}
-.row{display:flex;gap:12px}.row>*{flex:1}
-.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
-  border-radius:50%;animation:spin .6s linear infinite;display:inline-block}
-@keyframes spin{to{transform:rotate(360deg)}}
-.empty{text-align:center;padding:60px;color:var(--muted)}
-.empty .eicon{font-size:48px;margin-bottom:12px}
-.search-bar{display:flex;gap:8px;margin-bottom:16px}
-.search-bar input{flex:1}
-.conn{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
-  border-radius:20px;font-size:11px;font-weight:600}
-.conn-ok{background:rgba(35,134,54,.2);color:#56d364}
-.conn-err{background:rgba(218,54,51,.2);color:#ff7b72}
-.conn-wait{background:rgba(139,148,158,.15);color:var(--muted)}
-h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
+/* Shortcut hint */
+.kbd{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--bg);border:1px solid var(--border2);
+  border-radius:4px;padding:1px 5px;
+  font-family:var(--mono);font-size:10px;
+  color:var(--text3);
+}
+
+/* Spinner */
+.spin{
+  width:14px;height:14px;
+  border:2px solid rgba(255,255,255,.2);
+  border-top-color:currentColor;
+  border-radius:50%;animation:spin .6s linear infinite;
+  display:inline-block;flex-shrink:0;
+}
+
+/* Responsive */
+@media(max-width:640px){
+  .stats-bar{grid-template-columns:1fr 1fr}
+  .two-col,.upload-grid{grid-template-columns:1fr}
+  .fur-row{grid-template-columns:1fr 80px 52px 28px}
+  .header-brand .ver{display:none}
+}
+@media(max-width:480px){
+  .stats-bar{grid-template-columns:repeat(2,1fr)}
+}
 </style>
 </head>
 <body>
 
-<!-- ─── LOGIN ──────────────────────────────────────────────── -->
+<!-- ════════════════════ LOGIN ════════════════════ -->
 <div id="login-screen">
-  <div class="login-box">
-    <div class="logo">📦</div>
-    <h1>Cabix Admin</h1>
-    <p class="sub">Kirish uchun parol kiriting</p>
-
-    <!-- API URL ko'rsatgich (o'zgartirib bo'lmaydi) -->
-    <div class="api-badge">
-      <span>🔗</span>
-      <span id="api-display"></span>
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="icon">📦</div>
+      <h1>Cabix Admin</h1>
+      <p>Modul boshqaruv tizimi</p>
     </div>
-
-    <div class="form-group" style="text-align:left">
-      <label>Parol</label>
-      <input id="inp-pass" type="password" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter') doLogin()">
+    <div class="login-card">
+      <div class="api-pill">
+        <span class="dot"></span>
+        <span id="api-display">yuklanyapti...</span>
+      </div>
+      <div class="field">
+        <label>Admin paroli</label>
+        <input id="inp-pass" type="password" placeholder="••••••••"
+          onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn-login" id="login-btn" onclick="doLogin()">
+        Kirish
+      </button>
+      <div id="login-err"></div>
     </div>
-    <button class="btn btn-primary" style="width:100%;padding:12px"
-      id="login-btn" onclick="doLogin()">Kirish</button>
-    <p id="login-err"></p>
   </div>
 </div>
 
-<!-- ─── APP ────────────────────────────────────────────────── -->
+<!-- ════════════════════ APP ════════════════════ -->
 <div id="app">
-  <header>
-    <div class="brand">
-      📦 Cabix Admin <span class="v">v4</span>
-      <span class="conn conn-wait" id="conn-badge">⏳</span>
+  <header class="header">
+    <div class="header-brand">
+      <div class="box">📦</div>
+      Cabix Admin
+      <span class="ver">v5</span>
+      <span class="conn-dot" id="conn">
+        <span class="dot"></span>
+        <span class="lbl">ulanyapti...</span>
+      </span>
     </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-primary btn-sm" onclick="openModal()">＋ Modul</button>
+    <div class="header-actions">
+      <button class="btn-icon" title="Yangilash (R)" onclick="loadModules()">↻</button>
+      <button class="btn btn-amber btn-sm" onclick="openModal()" title="Yangi modul (N)">
+        + Modul
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Chiqish</button>
     </div>
   </header>
-  <div class="container">
-    <div class="search-bar">
-      <input id="search" placeholder="🔍 Artikul yoki nomi..." oninput="filterModules()">
-      <button class="btn btn-ghost" onclick="loadModules()">🔄</button>
+
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat stat-total">
+        <div class="num" id="s-total">—</div>
+        <div class="lbl">Jami modul</div>
+        <div class="bar"><div class="bar-fill" id="sb-total" style="width:100%"></div></div>
+      </div>
+      <div class="stat stat-pdf">
+        <div class="num" id="s-pdf">—</div>
+        <div class="lbl">PDF (TG)</div>
+        <div class="bar"><div class="bar-fill" id="sb-pdf" style="width:0"></div></div>
+      </div>
+      <div class="stat stat-video">
+        <div class="num" id="s-video">—</div>
+        <div class="lbl">Video (TG)</div>
+        <div class="bar"><div class="bar-fill" id="sb-video" style="width:0"></div></div>
+      </div>
+      <div class="stat stat-fur">
+        <div class="num" id="s-fur">—</div>
+        <div class="lbl">Furnitura yozuv</div>
+        <div class="bar"><div class="bar-fill" id="sb-fur" style="width:100%"></div></div>
+      </div>
     </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <span class="icon">🔍</span>
+        <input id="search" placeholder="Artikul yoki nomi..." oninput="filterModules()">
+      </div>
+      <div class="filter-pills">
+        <button class="pill active" data-f="all"   onclick="setFilter('all',this)">Barchasi</button>
+        <button class="pill"        data-f="tg"    onclick="setFilter('tg',this)">✈️ TG</button>
+        <button class="pill"        data-f="nopdf" onclick="setFilter('nopdf',this)">📄 PDF yo'q</button>
+        <button class="pill"        data-f="novid" onclick="setFilter('novid',this)">🎬 Video yo'q</button>
+      </div>
+      <select class="sort-sel" id="sort-sel" onchange="filterModules()">
+        <option value="art">Artikul ↑</option>
+        <option value="art-d">Artikul ↓</option>
+        <option value="nom">Nomi ↑</option>
+        <option value="fur">Furnitura</option>
+      </select>
+    </div>
+
+    <!-- Module list -->
     <div id="mod-list">
-      <div class="empty"><div class="eicon">⏳</div><p>Yuklanmoqda...</p></div>
+      <div class="mod-grid" id="mod-grid">
+        <!-- skeletons -->
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ─── MODAL ──────────────────────────────────────────────── -->
+<!-- ════════════════════ MODAL ════════════════════ -->
 <div class="modal-bg" id="mod-modal">
   <div class="modal">
-    <div class="modal-header">
-      <h2 id="modal-title">Modul qo'shish</h2>
-      <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+    <div class="modal-head">
+      <div>
+        <h2 id="modal-title">Yangi modul</h2>
+        <div class="subtitle" id="modal-sub">Yangi yozuv qo'shish</div>
+      </div>
+      <button class="btn-icon" onclick="closeModal()" title="Yopish (Esc)">✕</button>
     </div>
     <div class="modal-body">
 
-      <div class="row">
-        <div class="form-group">
-          <label>Artikul *</label>
-          <input id="f-artikul" placeholder="Masalan: KAB-101">
+      <!-- Asosiy ma'lumotlar -->
+      <div class="two-col">
+        <div class="field-group">
+          <label>Artikul <span style="color:var(--red)">*</span></label>
+          <input id="f-art" class="mono" placeholder="PM15C1" autocomplete="off">
         </div>
-        <div class="form-group">
-          <label>Nomi</label>
-          <input id="f-nomi" placeholder="Modul nomi">
+        <div class="field-group">
+          <label>Modul nomi</label>
+          <input id="f-nom" placeholder="Krovat PM-15C1">
         </div>
       </div>
 
-      <hr class="sep">
-      <h4 class="sec">📄 PDF (Chizma)</h4>
-      <div class="row">
+      <!-- PDF bo'limi -->
+      <div class="sec-div">
+        <span class="sec-label">📄 PDF — Chizma</span>
+        <div class="line"></div>
+      </div>
+      <div class="upload-grid">
         <div>
-          <div class="form-group">
-            <label>Fayl tanlash → Telegram</label>
-            <div class="file-drop" id="pdf-drop">
-              <input type="file" accept=".pdf,application/pdf" onchange="fileSelected(this,'pdf')">
-              <div class="dicon">📄</div>
-              <p>PDF tanlang yoki tashlang</p>
-              <div class="file-name" id="pdf-fname"></div>
-            </div>
-            <div class="upload-progress" id="pdf-prog">
-              <div class="upload-bar" id="pdf-bar" style="width:0"></div>
-            </div>
-            <div class="upload-status" id="pdf-stat"></div>
-            <button class="btn btn-accent btn-sm" style="margin-top:6px"
+          <div class="upload-box" id="pdf-drop">
+            <input type="file" accept=".pdf,application/pdf" onchange="fileSelected(this,'pdf')">
+            <span class="up-icon">📄</span>
+            <div class="up-text">PDF tanlang yoki tashlang</div>
+            <div class="up-name" id="pdf-fname"></div>
+          </div>
+          <div class="upload-meta">
+            <div class="prog-wrap" id="pdf-prog"><div class="prog-bar" id="pdf-bar" style="width:0"></div></div>
+            <div class="up-stat" id="pdf-stat"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%"
               onclick="uploadFile('pdf')">📤 Telegram'ga yuklash</button>
           </div>
         </div>
         <div>
-          <div class="form-group">
+          <div class="field-group">
             <label>Telegram File ID</label>
-            <input id="f-tgPdfId" placeholder="BQACAgIAAxk...">
+            <input id="f-tgPdf" class="mono" placeholder="BQACAgIAAxk...">
           </div>
-          <div class="form-group">
+          <div class="field-group">
             <label>Google Drive URL (zaxira)</label>
             <input id="f-pdfUrl" placeholder="https://drive.google.com/...">
           </div>
         </div>
       </div>
 
-      <hr class="sep">
-      <h4 class="sec">🎬 Video</h4>
-      <div class="row">
+      <!-- Video bo'limi -->
+      <div class="sec-div">
+        <span class="sec-label">🎬 Video</span>
+        <div class="line"></div>
+      </div>
+      <div class="upload-grid">
         <div>
-          <div class="form-group">
-            <label>Fayl tanlash → Telegram (max 50MB)</label>
-            <div class="file-drop" id="video-drop">
-              <input type="file" accept="video/*" onchange="fileSelected(this,'video')">
-              <div class="dicon">🎬</div>
-              <p>Video tanlang yoki tashlang</p>
-              <div class="file-name" id="video-fname"></div>
-            </div>
-            <div class="upload-progress" id="video-prog">
-              <div class="upload-bar" id="video-bar" style="width:0"></div>
-            </div>
-            <div class="upload-status" id="video-stat"></div>
-            <button class="btn btn-accent btn-sm" style="margin-top:6px"
+          <div class="upload-box" id="video-drop">
+            <input type="file" accept="video/*" onchange="fileSelected(this,'video')">
+            <span class="up-icon">🎬</span>
+            <div class="up-text">Video tanlang (max 50MB)</div>
+            <div class="up-name" id="video-fname"></div>
+          </div>
+          <div class="upload-meta">
+            <div class="prog-wrap" id="video-prog"><div class="prog-bar" id="video-bar" style="width:0"></div></div>
+            <div class="up-stat" id="video-stat"></div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%"
               onclick="uploadFile('video')">📤 Telegram'ga yuklash</button>
           </div>
         </div>
         <div>
-          <div class="form-group">
+          <div class="field-group">
             <label>Telegram File ID</label>
-            <input id="f-tgVideoId" placeholder="BAACAgIAAxk...">
+            <input id="f-tgVideo" class="mono" placeholder="BAACAgIAAxk...">
           </div>
-          <div class="form-group">
+          <div class="field-group">
             <label>YouTube / Drive URL (zaxira)</label>
             <input id="f-videoUrl" placeholder="https://youtu.be/...">
           </div>
         </div>
       </div>
 
-      <hr class="sep">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <h4 class="sec" style="margin:0">🔧 Furnituralar
-          <span id="fur-count" style="color:var(--accent)"></span>
-        </h4>
-        <button class="btn btn-ghost btn-sm" onclick="addCategory()">＋ Kategoriya</button>
+      <!-- Furnituralar -->
+      <div class="sec-div">
+        <span class="sec-label">🔧 Furnituralar</span>
+        <span class="fur-cnt" id="fur-cnt"></span>
+        <div class="line"></div>
+        <button class="btn btn-ghost btn-sm" onclick="addCat()">+ Kategoriya</button>
       </div>
-      <div id="fur-editor"></div>
+      <div class="fur-editor" id="fur-editor">
+        <div class="fur-empty" id="fur-empty">Hali kategoriya yo'q. "+ Kategoriya" tugmasini bosing.</div>
+      </div>
 
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Bekor</button>
+    <div class="modal-foot">
       <button class="btn btn-danger btn-sm" id="btn-del"
-        style="display:none;margin-right:auto" onclick="deleteModule()">🗑 O'chirish</button>
-      <button class="btn btn-primary" id="btn-save" onclick="saveModule()">💾 Saqlash</button>
+        style="display:none;margin-right:auto" onclick="delModule()">🗑 O'chirish</button>
+      <span style="font-size:11px;color:var(--text3);margin-right:4px">
+        <kbd class="kbd">Ctrl+S</kbd> saqlash
+      </span>
+      <button class="btn btn-ghost" onclick="closeModal()">Bekor</button>
+      <button class="btn btn-amber" id="btn-save" onclick="saveModule()">💾 Saqlash</button>
     </div>
   </div>
 </div>
@@ -284,46 +805,46 @@ h4.sec{font-size:13px;color:var(--muted);margin-bottom:10px}
 <div id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════════════
-//  HARDCODED API URL — api_repository.dart bilan bir xil
-// ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════
 const API = 'https://script.google.com/macros/s/AKfycbxlNd85TBCBhMXUx-dWQ3dfGqLvIK-njvwXE0Nltt07My5uFvIQh90R_VZLL34ZjZacLQ/exec';
 
-// URL ni login ekranida ko'rsatish (qisqartirilgan)
 document.getElementById('api-display').textContent =
-  API.replace('https://script.google.com/macros/s/', '').replace('/exec', '').slice(0,28) + '...';
+  'script.google.com › ' + API.split('/s/')[1].slice(0, 20) + '…';
 
-// ── State ─────────────────────────────────────────────────
-let PWD = '', modules = [], editing = null;
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let PWD = '', allModules = [], editing = null, activeFilter = 'all';
 let selFiles = { pdf: null, video: null };
 
-// ── Auth ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════
 async function doLogin() {
-  const pass  = document.getElementById('inp-pass').value.trim();
+  const pass = document.getElementById('inp-pass').value.trim();
   const errEl = document.getElementById('login-err');
   errEl.style.display = 'none';
-
   if (!pass) { showErr('Parol kiriting'); return; }
 
   const btn = document.getElementById('login-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Ulanmoqda...';
-
+  btn.innerHTML = '<span class="spin"></span> Ulanmoqda...';
   PWD = pass;
+
   try {
     const d = await apiGet({ action: 'ping' });
     if (d.error) throw new Error(d.error);
-  } catch (e) {
-    showErr('Xato: ' + e.message);
+  } catch(e) {
+    showErr(e.message);
     btn.disabled = false; btn.innerHTML = 'Kirish';
     PWD = ''; return;
   }
 
-  // Parolni saqlab qo'yish (keyingi kirish uchun)
   localStorage.setItem('cx_pw', pass);
-
   document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+  document.getElementById('app').classList.add('visible');
   btn.disabled = false; btn.innerHTML = 'Kirish';
   setConn(true);
   loadModules();
@@ -333,124 +854,207 @@ function showErr(m) {
   const el = document.getElementById('login-err');
   el.textContent = '❌ ' + m; el.style.display = 'block';
 }
-
-function logout() {
-  localStorage.removeItem('cx_pw');
-  location.reload();
-}
+function logout() { localStorage.removeItem('cx_pw'); location.reload(); }
 
 function setConn(ok) {
-  const el = document.getElementById('conn-badge');
-  el.className = 'conn ' + (ok ? 'conn-ok' : 'conn-err');
-  el.textContent = ok ? '✅ Ulangan' : '❌ Ulanmagan';
+  const el = document.getElementById('conn');
+  el.className = 'conn-dot ' + (ok ? 'ok' : 'err');
+  el.querySelector('.lbl').textContent = ok ? 'ulangan' : 'xato';
 }
 
-// Saqlangan parol bilan avtomatik kirish
 window.onload = () => {
   const pw = localStorage.getItem('cx_pw');
-  if (pw) {
-    document.getElementById('inp-pass').value = pw;
-    doLogin();
-  }
+  if (pw) { document.getElementById('inp-pass').value = pw; doLogin(); }
 
   // Drag & drop
-  ['pdf', 'video'].forEach(t => {
-    const d = document.getElementById(t + '-drop');
+  ['pdf','video'].forEach(t => {
+    const d = document.getElementById(t+'-drop');
     d.addEventListener('dragover',  e => { e.preventDefault(); d.classList.add('drag'); });
     d.addEventListener('dragleave', () => d.classList.remove('drag'));
     d.addEventListener('drop', e => {
       e.preventDefault(); d.classList.remove('drag');
       const f = e.dataTransfer.files[0];
-      if (f) { selFiles[t] = f; document.getElementById(t + '-fname').textContent = '📎 ' + f.name; }
+      if (f) { selFiles[t] = f; document.getElementById(t+'-fname').textContent = '📎 ' + f.name; }
     });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveModule(); }
+    if (e.key === 'n' && !modalOpen() && document.activeElement.tagName !== 'INPUT') openModal();
+    if (e.key === 'r' && !modalOpen() && document.activeElement.tagName !== 'INPUT') loadModules();
   });
 };
 
-// ── API ───────────────────────────────────────────────────
-async function apiGet(params) {
-  const qs = new URLSearchParams({ password: PWD, ...params });
-  const r  = await fetch(`${API}?${qs}`);
-  const t  = await r.text();
-  try { return JSON.parse(t); } catch { throw new Error(t.slice(0, 120)); }
+function modalOpen() {
+  return document.getElementById('mod-modal').classList.contains('open');
 }
 
-async function apiPost(body) {
-  const r = await fetch(API, {
-    method: 'POST',
-    body: JSON.stringify({ ...body, password: PWD }),
-  });
+// ═══════════════════════════════════════════
+//  API
+// ═══════════════════════════════════════════
+async function apiGet(p) {
+  const r = await fetch(`${API}?${new URLSearchParams({password:PWD,...p})}`);
   const t = await r.text();
-  try { return JSON.parse(t); } catch { throw new Error(t.slice(0, 120)); }
+  try { return JSON.parse(t); } catch { throw new Error(t.slice(0,120)); }
+}
+async function apiPost(b) {
+  const r = await fetch(API, { method:'POST', body:JSON.stringify({...b,password:PWD}) });
+  const t = await r.text();
+  try { return JSON.parse(t); } catch { throw new Error(t.slice(0,120)); }
 }
 
-// ── Modules ───────────────────────────────────────────────
+// ═══════════════════════════════════════════
+//  MODULES
+// ═══════════════════════════════════════════
 async function loadModules() {
-  document.getElementById('mod-list').innerHTML =
-    '<div class="empty"><div class="eicon">⏳</div><p>Yuklanmoqda...</p></div>';
+  showSkeletons();
   try {
-    const d = await apiGet({ action: 'modules' });
-    if (d.error) { toast(d.error, 'err'); setConn(false); return; }
-    modules = Array.isArray(d) ? d : [];
-    renderList(modules); setConn(true);
-  } catch (e) { toast(e.message, 'err'); setConn(false); }
+    const d = await apiGet({ action:'modules' });
+    if (d.error) { toast(d.error,'err'); setConn(false); return; }
+    allModules = Array.isArray(d) ? d : [];
+    updateStats();
+    filterModules();
+    setConn(true);
+  } catch(e) { toast(e.message,'err'); setConn(false); }
+}
+
+function showSkeletons() {
+  document.getElementById('mod-grid').innerHTML =
+    Array(6).fill('<div class="skeleton"></div>').join('');
+}
+
+function updateStats() {
+  const n = allModules.length;
+  const tgPdf   = allModules.filter(m => m.tgPdfId).length;
+  const tgVideo = allModules.filter(m => m.tgVideoId).length;
+  const furTotal = allModules.reduce((s,m) =>
+    s + Object.values(m.furnituralar||{}).reduce((a,v) => a+v.length, 0), 0);
+
+  const pct = v => n > 0 ? Math.round(v/n*100)+'%' : '0%';
+  g('s-total').textContent  = n;
+  g('s-pdf').textContent    = tgPdf;
+  g('s-video').textContent  = tgVideo;
+  g('s-fur').textContent    = furTotal;
+  g('sb-pdf').style.width   = pct(tgPdf);
+  g('sb-video').style.width = pct(tgVideo);
+}
+
+let currentFilter = 'all';
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  filterModules();
 }
 
 function filterModules() {
-  const q = document.getElementById('search').value.toLowerCase();
-  renderList(modules.filter(m =>
-    m.artikul.toLowerCase().includes(q) || (m.nomi || '').toLowerCase().includes(q)
-  ));
+  const q     = g('search').value.toLowerCase();
+  const sort  = g('sort-sel').value;
+  let list    = [...allModules];
+
+  // Filter
+  if (currentFilter === 'tg')    list = list.filter(m => m.tgPdfId || m.tgVideoId);
+  if (currentFilter === 'nopdf') list = list.filter(m => !m.tgPdfId && !m.pdfUrl);
+  if (currentFilter === 'novid') list = list.filter(m => !m.tgVideoId && !m.videoUrl);
+
+  // Search
+  if (q) list = list.filter(m =>
+    m.artikul.toLowerCase().includes(q) ||
+    (m.nomi||'').toLowerCase().includes(q)
+  );
+
+  // Sort
+  if (sort==='art')   list.sort((a,b) => a.artikul.localeCompare(b.artikul));
+  if (sort==='art-d') list.sort((a,b) => b.artikul.localeCompare(a.artikul));
+  if (sort==='nom')   list.sort((a,b) => (a.nomi||'').localeCompare(b.nomi||''));
+  if (sort==='fur')   list.sort((a,b) => furCount(b) - furCount(a));
+
+  renderGrid(list);
 }
 
-function renderList(list) {
-  const el = document.getElementById('mod-list');
+function furCount(m) {
+  return Object.values(m.furnituralar||{}).reduce((s,v) => s+v.length, 0);
+}
+
+function renderGrid(list) {
+  const grid = g('mod-grid');
   if (!list.length) {
-    el.innerHTML = '<div class="empty"><div class="eicon">📦</div><p>Modullar topilmadi</p></div>';
+    grid.innerHTML = `<div class="empty">
+      <div class="ico">📦</div>
+      <p>Modullar topilmadi</p>
+    </div>`;
     return;
   }
-  el.innerHTML = '<div class="module-grid">' + list.map(m => `
-    <div class="module-card" onclick="openModal('${esc(m.artikul)}')">
-      <div class="art">${esc(m.artikul)}</div>
-      <div class="nom">${esc(m.nomi || '—')}</div>
-      <div class="badges">
-        ${m.tgPdfId
-          ? '<span class="badge badge-green">📄 TG PDF</span>'
-          : m.pdfUrl
-            ? '<span class="badge badge-blue">📄 Drive</span>'
-            : '<span class="badge badge-gray">PDF yo\'q</span>'}
-        ${m.tgVideoId
-          ? '<span class="badge badge-green">🎬 TG Video</span>'
-          : m.videoUrl
-            ? '<span class="badge badge-blue">🎬 Drive</span>'
-            : '<span class="badge badge-gray">Video yo\'q</span>'}
-        <span class="badge badge-gray">${Object.keys(m.furnituralar || {}).length} kat.</span>
+
+  grid.innerHTML = list.map((m, i) => {
+    const driveId = m.pdfUrl?.match(/[-\w]{25,}/)?.[0];
+    const hasTgPdf   = !!m.tgPdfId;
+    const hasTgVideo = !!m.tgVideoId;
+    const hasDrivePdf = !!m.pdfUrl && !hasTgPdf;
+    const hasDriveVid = !!m.videoUrl && !hasTgVideo;
+    const fc = furCount(m);
+
+    const thumb = driveId
+      ? `<img src="https://lh3.googleusercontent.com/d/${driveId}"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+              loading="lazy">
+         <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:28px">📄</div>`
+      : hasTgPdf ? `<div style="font-size:28px">📄</div>`
+      : `<div style="font-size:28px;opacity:.3">📦</div>`;
+
+    return `<div class="mod-card" style="animation-delay:${i*0.03}s"
+      onclick="openModal('${esc(m.artikul)}')">
+      <div class="thumb">${thumb}<div class="overlay"></div></div>
+      <div class="body">
+        <div class="art">${esc(m.artikul)}</div>
+        <div class="nom">${esc(m.nomi||'—')}</div>
+        <div class="tags">
+          ${hasTgPdf   ? '<span class="tag tag-tg">✈️ PDF</span>'   : ''}
+          ${hasTgVideo ? '<span class="tag tag-tg">✈️ Video</span>' : ''}
+          ${hasDrivePdf? '<span class="tag tag-drive">☁️ PDF</span>'  : ''}
+          ${hasDriveVid? '<span class="tag tag-drive">☁️ Video</span>': ''}
+          ${!hasTgPdf && !m.pdfUrl    ? '<span class="tag tag-none">PDF yo\'q</span>'   : ''}
+          ${!hasTgVideo && !m.videoUrl ? '<span class="tag tag-none">Video yo\'q</span>' : ''}
+        </div>
       </div>
-    </div>`).join('') + '</div>';
+      <div class="footer">
+        <span class="fur-count">🔧 ${fc} furnitura</span>
+        <span class="edit-hint">✏️ Tahrirlash</span>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-// ── File upload ───────────────────────────────────────────
+// ═══════════════════════════════════════════
+//  FILE UPLOAD
+// ═══════════════════════════════════════════
 function fileSelected(inp, type) {
   const f = inp.files[0]; if (!f) return;
   selFiles[type] = f;
-  document.getElementById(type + '-fname').textContent =
-    `📎 ${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`;
+  g(type+'-fname').textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
 }
 
 async function uploadFile(type) {
   const f = selFiles[type];
-  if (!f) { toast('Avval fayl tanlang', 'warn'); return; }
-  if (f.size > 50 * 1024 * 1024) { toast('Fayl 50MB dan katta!', 'err'); return; }
+  if (!f) { toast('Avval fayl tanlang','warn'); return; }
+  if (f.size > 50*1024*1024) { toast('50MB dan katta fayl qabul qilinmaydi','err'); return; }
 
-  const prog = document.getElementById(type + '-prog');
-  const bar  = document.getElementById(type + '-bar');
-  const stat = document.getElementById(type + '-stat');
+  const prog = g(type+'-prog');
+  const bar  = g(type+'-bar');
+  const stat = g(type+'-stat');
 
-  prog.style.display = 'block'; bar.style.width = '10%';
-  stat.textContent = '⏳ O\'girish...'; stat.style.color = 'var(--muted)';
+  prog.style.display = 'block';
+  bar.style.width = '10%';
+  stat.textContent = 'Base64 ga o\'girish...';
+  stat.style.color = 'var(--text3)';
 
   try {
     const b64 = await toBase64(f);
-    bar.style.width = '40%'; stat.textContent = '⏳ Telegram\'ga yuklanyapti...';
+    bar.style.width = '40%';
+    stat.textContent = 'Telegram\'ga yuklanyapti...';
+
     const r = await apiPost({
       action: 'upload_file',
       fileBase64: b64.split(',')[1],
@@ -458,166 +1062,214 @@ async function uploadFile(type) {
       mimeType: f.type || 'application/octet-stream',
     });
     bar.style.width = '100%';
+
     if (r.ok && r.file_id) {
-      stat.textContent = '✅ Yuklandi!'; stat.style.color = '#56d364';
-      document.getElementById(type === 'pdf' ? 'f-tgPdfId' : 'f-tgVideoId').value = r.file_id;
-      toast((type === 'pdf' ? 'PDF' : 'Video') + ' Telegram\'ga yuklandi ✅', 'ok');
+      stat.textContent = '✅ file_id: ' + r.file_id.slice(0,18) + '...';
+      stat.style.color = 'var(--green)';
+      g(type==='pdf' ? 'f-tgPdf' : 'f-tgVideo').value = r.file_id;
+      toast((type==='pdf'?'PDF':'Video') + ' yuklandi ✅', 'ok');
       selFiles[type] = null;
+      g(type+'-fname').textContent = '';
     } else {
-      stat.textContent = '❌ ' + (r.error || 'Xato'); stat.style.color = '#ff7b72';
-      toast(r.error || 'Yuklash xatosi', 'err');
+      stat.textContent = '❌ ' + (r.error||'Xato');
+      stat.style.color = 'var(--red)';
+      toast(r.error||'Yuklash xatosi','err');
     }
-  } catch (e) {
-    stat.textContent = '❌ ' + e.message; stat.style.color = '#ff7b72';
-    toast(e.message, 'err');
+  } catch(e) {
+    stat.textContent = '❌ ' + e.message;
+    stat.style.color = 'var(--red)';
+    toast(e.message,'err');
   }
 }
 
 function toBase64(f) {
-  return new Promise((res, rej) => {
+  return new Promise((res,rej) => {
     const r = new FileReader();
-    r.onload  = () => res(r.result);
+    r.onload = () => res(r.result);
     r.onerror = () => rej(new Error('Fayl o\'qilmadi'));
     r.readAsDataURL(f);
   });
 }
 
-// ── Modal ─────────────────────────────────────────────────
-function openModal(artikul = null) {
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
+function openModal(artikul=null) {
   editing = artikul;
-  selFiles = { pdf: null, video: null };
-  ['pdf', 'video'].forEach(t => {
-    document.getElementById(t + '-fname').textContent = '';
-    document.getElementById(t + '-prog').style.display = 'none';
-    document.getElementById(t + '-bar').style.width = '0';
-    document.getElementById(t + '-stat').textContent = '';
+  selFiles = {pdf:null,video:null};
+  ['pdf','video'].forEach(t => {
+    g(t+'-fname').textContent = '';
+    g(t+'-prog').style.display = 'none';
+    g(t+'-bar').style.width = '0';
+    g(t+'-stat').textContent = '';
+    g(t+'-stat').style.color = 'var(--text3)';
   });
-  document.getElementById('mod-modal').classList.add('open');
 
   if (artikul) {
-    const m = modules.find(x => x.artikul === artikul);
+    const m = allModules.find(x => x.artikul===artikul);
     if (!m) return;
-    document.getElementById('modal-title').textContent = 'Tahrirlash';
-    document.getElementById('btn-del').style.display = 'block';
-    sv('f-artikul',  m.artikul);
-    sv('f-nomi',     m.nomi       || '');
-    sv('f-tgPdfId',  m.tgPdfId   || '');
-    sv('f-tgVideoId',m.tgVideoId || '');
-    sv('f-pdfUrl',   m.pdfUrl    || '');
-    sv('f-videoUrl', m.videoUrl  || '');
-    renderFurEditor(m.furnituralar || {});
+    g('modal-title').textContent = 'Modulni tahrirlash';
+    g('modal-sub').textContent   = m.artikul;
+    g('btn-del').style.display   = 'inline-flex';
+    sv('f-art',    m.artikul);
+    sv('f-nom',    m.nomi      || '');
+    sv('f-tgPdf',  m.tgPdfId  || '');
+    sv('f-tgVideo',m.tgVideoId|| '');
+    sv('f-pdfUrl', m.pdfUrl   || '');
+    sv('f-videoUrl',m.videoUrl|| '');
+    renderFurEditor(m.furnituralar||{});
   } else {
-    document.getElementById('modal-title').textContent = 'Modul qo\'shish';
-    document.getElementById('btn-del').style.display = 'none';
-    ['f-artikul','f-nomi','f-tgPdfId','f-tgVideoId','f-pdfUrl','f-videoUrl']
-      .forEach(id => sv(id, ''));
+    g('modal-title').textContent = 'Yangi modul';
+    g('modal-sub').textContent   = 'Yangi yozuv qo\'shish';
+    g('btn-del').style.display   = 'none';
+    ['f-art','f-nom','f-tgPdf','f-tgVideo','f-pdfUrl','f-videoUrl'].forEach(id=>sv(id,''));
     renderFurEditor({});
+    setTimeout(()=>g('f-art').focus(), 100);
   }
+
+  document.getElementById('mod-modal').classList.add('open');
 }
 
 function closeModal() {
   document.getElementById('mod-modal').classList.remove('open');
 }
-function sv(id, v) { document.getElementById(id).value = v; }
+function sv(id,v){g(id).value=v}
 
 async function saveModule() {
-  const artikul = document.getElementById('f-artikul').value.trim();
-  if (!artikul) { toast('Artikul kiritilmagan!', 'err'); return; }
+  const artikul = g('f-art').value.trim();
+  if (!artikul) { toast('Artikul kiritilmagan!','err'); g('f-art').focus(); return; }
+
   const module = {
     artikul,
-    nomi:       document.getElementById('f-nomi').value.trim(),
-    tgPdfId:    document.getElementById('f-tgPdfId').value.trim(),
-    tgVideoId:  document.getElementById('f-tgVideoId').value.trim(),
-    pdfUrl:     document.getElementById('f-pdfUrl').value.trim(),
-    videoUrl:   document.getElementById('f-videoUrl').value.trim(),
+    nomi:       g('f-nom').value.trim(),
+    tgPdfId:    g('f-tgPdf').value.trim(),
+    tgVideoId:  g('f-tgVideo').value.trim(),
+    pdfUrl:     g('f-pdfUrl').value.trim(),
+    videoUrl:   g('f-videoUrl').value.trim(),
     furnituralar: collectFur(),
   };
-  const btn = document.getElementById('btn-save');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Saqlanmoqda...';
+
+  const btn = g('btn-save');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Saqlanmoqda...';
+
   try {
-    const r = await apiPost({ action: 'save_module', module });
-    if (r.ok) { toast(`"${artikul}" saqlandi ✅`, 'ok'); closeModal(); loadModules(); }
-    else toast(r.error || 'Xato', 'err');
-  } catch (e) { toast(e.message, 'err'); }
-  finally { btn.disabled = false; btn.innerHTML = '💾 Saqlash'; }
+    const r = await apiPost({action:'save_module',module});
+    if (r.ok) {
+      toast(`"${artikul}" saqlandi ✅`,'ok');
+      closeModal(); loadModules();
+    } else toast(r.error||'Saqlashda xato','err');
+  } catch(e) { toast(e.message,'err'); }
+  finally { btn.disabled=false; btn.innerHTML='💾 Saqlash'; }
 }
 
-async function deleteModule() {
+async function delModule() {
   if (!editing) return;
-  if (!confirm(`"${editing}" ni o'chirasizmi?`)) return;
+  if (!confirm(`"${editing}" modulini o'chirishni tasdiqlaysizmi?\n\nBu amalni bekor qilib bo'lmaydi.`)) return;
+
   try {
-    const r = await apiPost({ action: 'delete_module', artikul: editing });
-    if (r.ok) { toast(`"${editing}" o'chirildi`, 'ok'); closeModal(); loadModules(); }
-    else toast(r.error, 'err');
-  } catch (e) { toast(e.message, 'err'); }
+    const r = await apiPost({action:'delete_module',artikul:editing});
+    if (r.ok) { toast(`"${editing}" o'chirildi`,'ok'); closeModal(); loadModules(); }
+    else toast(r.error,'err');
+  } catch(e) { toast(e.message,'err'); }
 }
 
-// ── Furnitura editor ──────────────────────────────────────
+// Close on backdrop
+document.getElementById('mod-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('mod-modal')) closeModal();
+});
+
+// ═══════════════════════════════════════════
+//  FURNITURA EDITOR
+// ═══════════════════════════════════════════
 function renderFurEditor(data) {
-  document.getElementById('fur-editor').innerHTML = '';
-  Object.entries(data).forEach(([k, v]) => addCategory(k, v));
-  updateFurCount();
+  const el = g('fur-editor');
+  el.innerHTML = '';
+  const entries = Object.entries(data);
+  if (entries.length === 0) {
+    el.innerHTML = '<div class="fur-empty" id="fur-empty">Hali kategoriya yo\'q. "+ Kategoriya" tugmasini bosing.</div>';
+  } else {
+    entries.forEach(([k,v]) => addCat(k,v));
+  }
+  updateFurCnt();
 }
-function updateFurCount() {
-  const n = document.querySelectorAll('.fur-row').length;
-  document.getElementById('fur-count').textContent = n ? `(${n} ta)` : '';
-}
-function addCategory(name = '', items = []) {
-  const el  = document.getElementById('fur-editor');
+
+function addCat(name='', items=[]) {
+  const el  = g('fur-editor');
+  // Remove empty placeholder
+  const emp = el.querySelector('.fur-empty');
+  if (emp) emp.remove();
+
   const cid = 'c' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const div = document.createElement('div');
-  div.className = 'fur-category'; div.id = cid;
+  div.className = 'fur-cat'; div.id = cid;
   div.innerHTML = `
-    <div class="fur-cat-header">
+    <div class="fur-cat-head">
       <input value="${esc(name)}" placeholder="Kategoriya nomi..." class="cat-nm">
-      <button class="btn btn-ghost btn-sm" onclick="addItem('${cid}')">＋</button>
+      <button class="btn btn-ghost btn-sm" onclick="addRow('${cid}')">+ Qo'shish</button>
       <button class="btn btn-danger btn-sm"
-        onclick="document.getElementById('${cid}').remove();updateFurCount()">✕</button>
+        onclick="document.getElementById('${cid}').remove();updateFurCnt()">✕</button>
     </div>
     <div class="fur-items" id="i_${cid}"></div>`;
   el.appendChild(div);
-  (items || []).forEach(it => addItem(cid, it.nomi, it.ulchov, it.soni));
+  (items||[]).forEach(it => addRow(cid, it.nomi, it.ulchov, it.soni));
+  if (!items.length) addRow(cid);
 }
-function addItem(cid, nomi = '', ulchov = '', soni = '') {
-  const c = document.getElementById('i_' + cid); if (!c) return;
-  const r = document.createElement('div'); r.className = 'fur-row';
+
+function addRow(cid, nomi='', ulchov='', soni='') {
+  const c = g('i_'+cid); if (!c) return;
+  const r = document.createElement('div'); r.className='fur-row';
   r.innerHTML = `
-    <input value="${esc(nomi)}"   placeholder="Nomi">
-    <input value="${esc(ulchov)}" placeholder="O'lchov">
-    <input value="${esc(soni)}"   placeholder="Soni" style="text-align:center">
-    <button class="btn btn-danger btn-sm"
-      onclick="this.parentElement.remove();updateFurCount()">✕</button>`;
-  c.appendChild(r); updateFurCount();
+    <input value="${esc(nomi)}"   placeholder="Nomi (masalan: Bolt M6)">
+    <input value="${esc(ulchov)}" placeholder="M6×20">
+    <input value="${esc(soni)}"   placeholder="8" class="soni-inp">
+    <button class="btn-icon" style="font-size:12px"
+      onclick="this.parentElement.remove();updateFurCnt()">✕</button>`;
+  c.appendChild(r); updateFurCnt();
 }
+
 function collectFur() {
   const res = {};
-  document.querySelectorAll('.fur-category').forEach(cat => {
-    const nm = cat.querySelector('.cat-nm').value.trim(); if (!nm) return;
+  document.querySelectorAll('.fur-cat').forEach(cat => {
+    const nm = cat.querySelector('.cat-nm')?.value.trim(); if (!nm) return;
     const items = [];
     cat.querySelectorAll('.fur-row').forEach(row => {
       const inp = row.querySelectorAll('input');
-      const n = inp[0].value.trim();
-      if (n) items.push({ nomi: n, ulchov: inp[1].value.trim(), soni: inp[2].value.trim() });
+      const n = inp[0]?.value.trim();
+      if (n) items.push({nomi:n, ulchov:inp[1]?.value.trim()||'', soni:inp[2]?.value.trim()||''});
     });
     res[nm] = items;
   });
   return res;
 }
 
-// ── Utils ─────────────────────────────────────────────────
-function toast(msg, type = 'ok') {
-  const el = document.getElementById('toast');
-  const it = document.createElement('div');
-  it.className = `toast-item toast-${type}`; it.textContent = msg;
-  el.appendChild(it); setTimeout(() => it.remove(), 3500);
+function updateFurCnt() {
+  const n = document.querySelectorAll('.fur-row').length;
+  g('fur-cnt').textContent = n ? n + ' ta' : '';
 }
+
+// ═══════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════
+function toast(msg, type='ok') {
+  const el = g('toast');
+  const t  = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.innerHTML = `<span class="toast-dot"></span>${esc(msg)}`;
+  el.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transform='translateX(110%)';
+    t.style.transition='.3s'; setTimeout(()=>t.remove(),300); }, 3200);
+}
+
+// ═══════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════
+function g(id) { return document.getElementById(id); }
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  return String(s||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-document.getElementById('mod-modal').addEventListener('click', e => {
-  if (e.target === document.getElementById('mod-modal')) closeModal();
-});
 </script>
 </body>
 </html>
