@@ -6,7 +6,7 @@ import '../models/module_model.dart';
 // ─── Apps Script URL ─────────────────────────────────────────
 // Bu URL Apps Script'dan olinadi (Deploy > Web App URL)
 const String apiUrl =
-    'https://script.google.com/macros/s/AKfycbxyWSaRdn-4NZkkwJiAb2Q-uezsE8U_iFhjdSfsd4vZRHodaQ-aLhMNZe9ZwqjdVMjQ/exec';
+    'https://script.google.com/macros/s/AKfycbySEWzF-gmQ8ZISG1Ewlnvk_TEhsLX_ryH13NqCRKcrsVeOc1nlxkP-zWXfjYhbPEI9/exec';
 
 // ─── Providers ───────────────────────────────────────────────
 final scannedBarcodeProvider = StateProvider<String?>((ref) => null);
