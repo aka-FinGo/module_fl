@@ -4,7 +4,6 @@ import '../../../data/repositories/api_repository.dart';
 import '../../../core/constants/app_colors.dart';
 import '../controllers/checklist_controller.dart';
 
-// Faqat bitta kategoriya ochiq turishi uchun provayder
 final expandedCategoryProvider = StateProvider<String?>((ref) => null);
 
 class ModuleDetailsPage extends ConsumerWidget {
@@ -12,13 +11,13 @@ class ModuleDetailsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final moduleData = ref.watch(moduleDataProvider);
-    final isLoading = ref.watch(isLoadingProvider);
-    final expandedCategory = ref.watch(expandedCategoryProvider);
-    final checkedItems = ref.watch(checklistProvider);
+    final moduleData      = ref.watch(moduleDataProvider);
+    final isLoading       = ref.watch(isLoadingProvider);
+    final expandedCat     = ref.watch(expandedCategoryProvider);
+    final checkedItems    = ref.watch(checklistProvider);
+
     if (isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(color: AppColors.accent));
+      return const Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
     if (moduleData == null) {
@@ -40,23 +39,42 @@ class ModuleDetailsPage extends ConsumerWidget {
       );
     }
 
+    if (moduleData.furnituralar.isEmpty) {
+      return const Center(
+        child: Text('Furnituralar kiritilmagan',
+            style: TextStyle(color: AppColors.textGray, fontSize: 15)),
+      );
+    }
+
     final categories = moduleData.furnituralar.keys.toList();
 
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 10),
-      itemCount: categories.length + 1, // +1 Spacer uchun
+      padding: const EdgeInsets.only(top: 10, bottom: 150),
+      itemCount: categories.length,
       itemBuilder: (context, index) {
-        if (index == categories.length) {
-          return const SizedBox(height: 150); // Scroll Spacer
-        }
+        final category  = categories[index];
+        final items     = moduleData.furnituralar[category] ?? [];
+        final isExpanded = expandedCat == category;
 
-        final category = categories[index];
-        final items = moduleData.furnituralar[category] ?? [];
-        final isExpanded = expandedCategory == category;
+        // Indeksni saqlash uchun original indeks bilan birgalikda ishlaymiz
+        final indexedItems = List.generate(items.length, (i) => (i, items[i]));
+
+        // Saralash: belgilanganlar pastga
+        indexedItems.sort((a, b) {
+          final aUid = '${moduleData.artikul}_${category}_${a.$1}';
+          final bUid = '${moduleData.artikul}_${category}_${b.$1}';
+          return (checkedItems.contains(aUid) ? 1 : 0)
+              .compareTo(checkedItems.contains(bUid) ? 1 : 0);
+        });
+
+        // Belgilanmagan va belgilangan sonlari
+        final uncheckedCount = indexedItems
+            .where((e) => !checkedItems.contains('${moduleData.artikul}_${category}_${e.$1}'))
+            .length;
 
         return Column(
           children: [
-            // ACCORDION HEADER
+            // ── ACCORDION HEADER ──────────────────────────
             GestureDetector(
               onTap: () {
                 ref.read(expandedCategoryProvider.notifier).state =
@@ -64,17 +82,32 @@ class ModuleDetailsPage extends ConsumerWidget {
               },
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(category,
-                        style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: Text(category,
+                          style: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                    if (checkedItems.any((uid) =>
+                        uid.startsWith('${moduleData.artikul}_${category}_')))
+                      Container(
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$uncheckedCount/${items.length}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                      ),
                     Icon(
                       isExpanded
                           ? Icons.keyboard_arrow_down
@@ -85,83 +118,96 @@ class ModuleDetailsPage extends ConsumerWidget {
                 ),
               ),
             ),
-            // ACCORDION BODY (Exclusive logic)
+
+            // ── ACCORDION BODY ────────────────────────────
             if (isExpanded)
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: const BoxDecoration(
                   color: Colors.white,
-                  borderRadius:
-                      BorderRadius.vertical(bottom: Radius.circular(8)),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(8)),
                 ),
                 child: Column(
-                  children: _buildSortedItems(
-                      items, category, moduleData.artikul, ref, checkedItems),
+                  children: indexedItems.map((entry) {
+                    final originalIndex = entry.$1;
+                    final item          = entry.$2;
+                    // UID — original index bilan (sorted emas!)
+                    final uid      = '${moduleData.artikul}_${category}_$originalIndex';
+                    final isChecked = checkedItems.contains(uid);
+
+                    return InkWell(
+                      onTap: () =>
+                          ref.read(checklistProvider.notifier).toggleItem(uid),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isChecked
+                              ? AppColors.accent.withOpacity(0.08)
+                              : Colors.transparent,
+                          border: const Border(
+                              bottom: BorderSide(color: Color(0xFFEEEEEE))),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isChecked
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                              color: isChecked ? AppColors.accent : AppColors.textGray,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(item.nomi,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: isChecked
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        color: isChecked
+                                            ? AppColors.textGray
+                                            : AppColors.textDark,
+                                      )),
+                                  if (item.ulchov.isNotEmpty)
+                                    Text(item.ulchov,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textGray)),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isChecked
+                                    ? AppColors.accent.withOpacity(0.1)
+                                    : AppColors.danger.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(item.soni,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: isChecked
+                                        ? AppColors.accent
+                                        : AppColors.danger,
+                                  )),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
           ],
         );
       },
     );
-  }
-
-  List<Widget> _buildSortedItems(List items, String category, String artikul,
-      WidgetRef ref, Set<String> checkedItems) {
-    // Saralash: Belgilanganlar eng pastga tushadi
-    final sortedItems = List.from(items);
-    sortedItems.sort((a, b) {
-      final aUid = "${artikul}_${category}_${items.indexOf(a)}";
-      final bUid = "${artikul}_${category}_${items.indexOf(b)}";
-      final aChecked = checkedItems.contains(aUid) ? 1 : 0;
-      final bChecked = checkedItems.contains(bUid) ? 1 : 0;
-      return aChecked.compareTo(bChecked);
-    });
-
-    return sortedItems.map((item) {
-      final uid = "${artikul}_${category}_${items.indexOf(item)}";
-      final isChecked = checkedItems.contains(uid);
-
-      return InkWell(
-        onTap: () => ref.read(checklistProvider.notifier).toggleItem(uid),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isChecked
-                ? AppColors.accent.withOpacity(0.1)
-                : Colors.transparent,
-            border: const Border(bottom: BorderSide(color: Color(0xFFEEEEEE))),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.nomi,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          decoration:
-                              isChecked ? TextDecoration.lineThrough : null,
-                          color:
-                              isChecked ? AppColors.accent : AppColors.textDark,
-                        )),
-                    Text(item.ulchov,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textGray)),
-                  ],
-                ),
-              ),
-              Text(item.soni,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isChecked ? AppColors.accent : AppColors.danger,
-                  )),
-            ],
-          ),
-        ),
-      );
-    }).toList();
   }
 }
